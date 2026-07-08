@@ -1,0 +1,63 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_call:
+    outputs:
+      artifact-prefix:
+        description: build_charm.yaml `artifact-prefix` output
+        value: ${{ jobs.build.outputs.artifact-prefix }}
+  pull_request:
+  schedule:
+    - cron: "53 2 * * *" # Daily at 02:53 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install tox
+        run: pipx install tox
+      - name: Run linters
+        run: tox run -e lint
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install tox
+        run: pipx install tox
+      - name: Run tests
+        run: tox run -e unit
+
+  build:
+    name: Build charm
+    uses: canonical/data-platform-workflows/.github/workflows/build_charm.yaml@v50.0.0
+    with:
+      cache: false
+
+  integration-test:
+    name: Integration tests
+    needs:
+      - lint
+      - unit-tests
+      - build
+    uses: ./.github/workflows/integration-tests.yaml
+    with:
+      artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
+    secrets: inherit

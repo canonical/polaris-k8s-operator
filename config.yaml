@@ -1,0 +1,10 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+options:
+  system-user:
+    type: secret
+    description: |
+      Configure the system user 'charmed-operator' and its password. This needs to be a Juju secret URI pointing to a secret that contains the
+      following content: `charmed-operator: <password>`. If this config option is not provided, the charm will generate a random password for the
+      admin user.
