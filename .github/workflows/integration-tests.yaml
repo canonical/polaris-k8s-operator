@@ -10,10 +10,6 @@ on:
         description: "Artifact prefix output from the build job"
         type: string
         required: true
-      mark-expression:
-        description: "pytest -m expression passed to spread tasks (empty = run all tests)"
-        type: string
-        default: "not unstable"
 
 permissions:
   contents: read
@@ -79,8 +75,6 @@ jobs:
           print(output)
           with open(os.environ["GITHUB_OUTPUT"], "a") as file:
               file.write(output)
-    outputs:
-      jobs: ${{ steps.collect-jobs.outputs.jobs }}
 
   integration-test:
     strategy:

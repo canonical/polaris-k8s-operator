@@ -60,5 +60,4 @@ jobs:
     uses: ./.github/workflows/integration-tests.yaml
     with:
       artifact-prefix: ${{ needs.build.outputs.artifact-prefix }}
-      mark-expression: ${{ github.event_name != 'schedule' && 'not unstable' || '' }}
     secrets: inherit
