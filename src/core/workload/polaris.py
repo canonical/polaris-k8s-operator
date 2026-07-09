@@ -7,10 +7,12 @@
 import ops.pebble
 from charmlibs import pathops
 from ops.model import Container
+import yaml
 
 from core.constants import (
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_SERVICE_NAME,
+    ROCK_METADATA,
 )
 from core.logging import WithLogging
 
@@ -67,3 +69,13 @@ class PolarisWorkload(WithLogging):
         """Execute business-logic for stopping the workload."""
         if self.ready and POLARIS_SERVICE_NAME in self.container.get_services():
             self.container.stop(POLARIS_SERVICE_NAME)
+
+    def get_workload_version(self) -> str:
+        """Get Polaris version from the workload."""
+        try:
+            metadata = (self.fs / ROCK_METADATA).read_text()
+            version = yaml.safe_load(metadata).get("version", "")
+            return version
+
+        except Exception:
+            return ""

@@ -14,9 +14,10 @@ REST_PORT = 8181
 MANAGEMENT_PORT = 8182
 REALM = "POLARIS"
 
-# Configuration files
+# Files
 POLARIS_APPLICATION_PROPERTIES = "/etc/polaris/application.properties"
 SYMMETRIC_KEY = "/etc/polaris/symmetric.key"
+ROCK_METADATA = "/.rock/metadata.yaml"
 
 # Relation names
 PEERS_RELATION_NAME = "polaris-peers"

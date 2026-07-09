@@ -169,7 +169,7 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
     def _on_leader_elected(self, event: ops.LeaderElectedEvent) -> None:
         """Handle the leader-elected event."""
-        self.charm.unit.set_workload_version("v1.5.0")
+        self.charm.unit.set_workload_version(self.polaris_workload.get_workload_version())
         self._reconcile(event)
 
     def _is_configured_system_user_secret(self, secret: ops.Secret) -> bool:
