@@ -74,10 +74,14 @@ backends:
     environment:
       CI: "$(HOST: echo $CI)"
     systems:
-      - self-hosted-linux-amd64-noble-large:
-          username: ubuntu
-      - self-hosted-linux-arm64-noble-large:
-          username: ubuntu
+      # - self-hosted-linux-amd64-noble-large:
+      #     username: ubuntu
+      # - self-hosted-linux-arm64-noble-large:
+      #     username: ubuntu
+      - ubuntu-24.04:
+          username: runner
+      - ubuntu-24.04-arm:
+          username: runner
 
 suites:
   tests/spread/:
@@ -86,6 +90,8 @@ suites:
 path: /root/spread_project
 
 kill-timeout: 3h
+environment:
+  PATH: $PATH:/root/.local/bin:/opt/pipx_bin
 
 prepare: |
   sleep 5
@@ -93,7 +99,7 @@ prepare: |
   chown -R root:root "$SPREAD_PATH"
   cd "$SPREAD_PATH"
   snap install --classic concierge
-  concierge prepare --trace -c tests/resources/concierge_ci.yaml
+  concierge prepare --trace -c tests/integration/resources/concierge.yaml
 
   pipx install tox
   pipx install poetry

@@ -5,4 +5,4 @@ summary: Run integration-charm tests
 
 execute: |
   cd "$SPREAD_PATH"
-  tox run -e integration-charm -- --model testing --keep-models -m "$MARK_EXPRESSION"
+  tox run -e integration-charm -- --model testing --keep-models

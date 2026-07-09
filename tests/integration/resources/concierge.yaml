@@ -9,6 +9,7 @@ juju:
 providers:
   k8s:
     enable: true
+    bootstrap: true
     channel: 1.35-classic/stable
     features:
       local-storage:

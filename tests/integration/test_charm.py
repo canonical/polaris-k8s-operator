@@ -23,7 +23,7 @@ def test_deploy(juju: jubilant.Juju, polaris_charm: Path) -> None:
     """Deploy polaris."""
     resources = {"polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"]}
     juju.deploy(polaris_charm, app="polaris-k8s", resources=resources)
-    juju.wait(jubilant.all_active, delay=5)
+    juju.wait(jubilant.all_active, delay=15)
 
 
 def test_polaris_api_is_reachable_random_passwd(juju: jubilant.Juju) -> None:
@@ -39,7 +39,7 @@ def test_set_admin_password_in_polaris(juju: jubilant.Juju) -> None:
     secret_uri = juju.add_secret(SECRET_NAME, {f"{ADMIN_USER}": TEST_PASSWORD})
     juju.grant_secret(secret_uri, APP_NAME)
     juju.config(APP_NAME, {"system-user": secret_uri})
-    juju.wait(jubilant.all_active)
+    juju.wait(jubilant.all_active, delay=15)
 
 
 def test_polaris_api_is_reachable_secret_password(juju: jubilant.Juju) -> None:
