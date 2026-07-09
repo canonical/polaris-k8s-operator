@@ -2,7 +2,9 @@
 # See LICENSE file for licensing details.
 
 from pathlib import Path
+from unittest.mock import patch
 
+import ops
 import yaml
 from ops.testing import Container, Context, PeerRelation, Secret, State
 
@@ -195,6 +197,80 @@ def test_secret_changed_updates_leader_config_and_epoch(
 
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "2"
+
+
+def test_configured_system_user_secret_not_found_sets_blocked_status(
+    polaris_container: Container,
+    polaris_context: Context,
+    polaris_peers_relation: PeerRelation,
+) -> None:
+    # Given
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation],
+        containers=[polaris_container],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.config_changed(), state)
+
+    # Then
+    assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST.value.message
+
+
+def test_configured_system_user_secret_without_grant_sets_blocked_status(
+    polaris_container: Container,
+    polaris_context: Context,
+    polaris_peers_relation: PeerRelation,
+) -> None:
+    # Given
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation],
+        containers=[polaris_container],
+    )
+
+    # When
+    with polaris_context(polaris_context.on.config_changed(), state) as manager:
+        with patch.object(
+            manager.charm.model,
+            "get_secret",
+            side_effect=ops.ModelError("ERROR permission denied"),
+        ):
+            out = manager.run()
+
+    # Then
+    assert (
+        out.unit_status.message
+        == CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION.value.message
+    )
+
+
+def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
+    polaris_container: Container,
+    polaris_context: Context,
+    polaris_peers_relation: PeerRelation,
+) -> None:
+    # Given
+    user_secret = Secret(
+        {"invalid-key": USER_PASSWORD},
+        id=USER_SECRET_ID,
+    )
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation],
+        containers=[polaris_container],
+        secrets=[user_secret],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.config_changed(), state)
+
+    # Then
+    assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_INVALID.value.message
 
 
 def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed(

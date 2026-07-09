@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import secrets
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import ops
@@ -33,6 +34,15 @@ SYSTEM_USER_SECRET_LABEL = "system-user"
 
 if TYPE_CHECKING:
     from charm import PolarisK8sCharm
+
+
+@dataclass(frozen=True)
+class SystemUserSecretValidation:
+    """Validation result for the configured system-user secret."""
+
+    configured: bool
+    password: str | None = None
+    status: StatusObject | None = None
 
 
 class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
@@ -107,30 +117,46 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
         return password
 
-    def _configured_admin_password(self) -> tuple[bool, str | None]:
-        """Return whether system-user is configured and its admin password, if valid."""
+    def _validate_system_user_secret(self) -> SystemUserSecretValidation:
+        """Validate the configured system-user secret and extract its password."""
         if not self._configured_system_user_secret_id():
-            return False, None
+            return SystemUserSecretValidation(configured=False)
 
-        return True, self._admin_password_from_secret_content(
-            self._get_system_user_secret_content()
-        )
+        try:
+            content = self._get_system_user_secret_content()
+        except ops.SecretNotFoundError:
+            return SystemUserSecretValidation(
+                configured=True,
+                status=CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST.value,
+            )
+        except ops.ModelError:
+            return SystemUserSecretValidation(
+                configured=True,
+                status=CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION.value,
+            )
+
+        password = self._admin_password_from_secret_content(content)
+        if not password:
+            return SystemUserSecretValidation(
+                configured=True,
+                status=CharmStatuses.SYSTEM_USER_SECRET_INVALID.value,
+            )
+
+        return SystemUserSecretValidation(configured=True, password=password)
 
     def _ensure_cluster_credentials(self) -> bool:
         """Ensure leader-owned peer state has the credentials required by Polaris."""
         if not self.charm.unit.is_leader():
             return True
 
-        configured, configured_admin_password = self._configured_admin_password()
-        if configured and not configured_admin_password:
-            self.logger.error("Configured system-user secret does not contain a valid password")
+        system_user = self._validate_system_user_secret()
+        if system_user.status:
+            self.logger.error(system_user.status.message)
             return False
 
         cluster = self.context.cluster
         admin_password = (
-            configured_admin_password
-            or cluster.admin_password
-            or secrets.token_hex(RANDOM_KEY_SIZE)
+            system_user.password or cluster.admin_password or secrets.token_hex(RANDOM_KEY_SIZE)
         )
         shared_key = cluster.shared_key or secrets.token_hex(RANDOM_KEY_SIZE)
 
@@ -200,6 +226,7 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
             raise
 
         if not self._admin_password_from_secret_content(content):
+            # Status collection will surface SYSTEM_USER_SECRET_INVALID.
             return
 
         self._reconcile(event)
@@ -220,6 +247,11 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
                 status_list.append(ConfigStatuses.missing_config_parameters(fields=missing))
             if invalid:
                 status_list.append(ConfigStatuses.invalid_config_parameters(fields=invalid))
+        else:
+            if self.charm.unit.is_leader() and (
+                system_user_status := self._validate_system_user_secret().status
+            ):
+                status_list.append(system_user_status)
 
         if not self.polaris_workload.ready:
             status_list.append(CharmStatuses.WAITING_PEBBLE.value)

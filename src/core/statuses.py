@@ -14,14 +14,14 @@ class CharmStatuses(Enum):
     ACTIVE_IDLE = StatusObject(status="active", message="")
     WAITING_PEBBLE = StatusObject(status="maintenance", message="Waiting for Pebble")
     SYSTEM_USER_SECRET_DOES_NOT_EXIST = StatusObject(
-        status="blocked", message="Secret provided as system-users does not exist"
+        status="blocked", message="Secret provided as system-user does not exist"
     )
     SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION = StatusObject(
         status="blocked",
-        message="Secret provided as system-users has not been granted to the charm",
+        message="Secret provided as system-user has not been granted to the charm",
     )
     SYSTEM_USER_SECRET_INVALID = StatusObject(
-        status="blocked", message="Secret provided as system-users has invalid content"
+        status="blocked", message="Secret provided as system-user has invalid content"
     )
 
 

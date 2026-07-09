@@ -57,8 +57,6 @@ class PolarisManager(WithLogging):
             )
         )
 
-        self.logger.error(self.context.cluster.admin_password)
-
         if not should_restart:
             self.logger.info("Workload restart skipped because the configuration did not change.")
             return
