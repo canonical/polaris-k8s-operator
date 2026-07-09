@@ -1,35 +1,56 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
-#
-# The integration tests use the Jubilant library. See https://documentation.ubuntu.com/jubilant/
-# To learn more about testing, see https://documentation.ubuntu.com/ops/latest/explanation/testing/
 
 import logging
-import pathlib
+from pathlib import Path
 
 import jubilant
-import pytest
 import yaml
+
+from core.constants import ADMIN_USER
+from .helpers import polaris_management_api
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(pathlib.Path("charmcraft.yaml").read_text())
+METADATA = yaml.safe_load(Path("metadata.yaml").read_text())
+APP_NAME = METADATA["name"]
+
+SECRET_NAME = "admin-password"
+TEST_PASSWORD = "s3cr3t"
 
 
-def test_deploy(charm: pathlib.Path, juju: jubilant.Juju):
-    """Deploy the charm under test."""
-    resources = {
-        "some-container-image": METADATA["resources"]["some-container-image"]["upstream-source"]
-    }
-    juju.deploy(charm.resolve(), app="polaris-k8s", resources=resources)
+def test_deploy(juju: jubilant.Juju, polaris_charm: Path) -> None:
+    """Deploy polaris."""
+    resources = {"polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"]}
+    juju.deploy(polaris_charm, app="polaris-k8s", resources=resources)
+    juju.wait(jubilant.all_active, delay=5)
+
+
+def test_polaris_api_is_reachable_random_passwd(juju: jubilant.Juju) -> None:
+    """Interact with polaris using the internal password."""
+    api = polaris_management_api(juju)
+    principals = api.list_principals()
+    assert len(principals.principals) == 1
+    assert principals.principals[0].client_id == ADMIN_USER
+
+
+def test_set_admin_password_in_polaris(juju: jubilant.Juju) -> None:
+    """Set system-user config option in Polaris."""
+    secret_uri = juju.add_secret(SECRET_NAME, {f"{ADMIN_USER}": TEST_PASSWORD})
+    juju.grant_secret(secret_uri, APP_NAME)
+    juju.config(APP_NAME, {"system-user": secret_uri})
     juju.wait(jubilant.all_active)
 
 
-# If you implement polaris.get_version in the charm source,
-# remove the @pytest.mark.skip line to enable this test.
-# Alternatively, remove this test if you don't need it.
-@pytest.mark.skip(reason="polaris.get_version is not implemented")
-def test_workload_version_is_set(charm: pathlib.Path, juju: jubilant.Juju):
-    """Check that the correct version of the workload is running."""
-    version = juju.status().apps["polaris-k8s"].version
-    assert version == "3.14"  # Replace 3.14 by the expected version of the workload.
+def test_polaris_api_is_reachable_secret_password(juju: jubilant.Juju) -> None:
+    """Interact with polaris using the secret password."""
+    api = polaris_management_api(juju, client_secret=TEST_PASSWORD)
+    principals = api.list_principals()
+    assert len(principals.principals) == 1
+    assert principals.principals[0].client_id == ADMIN_USER
+
+
+def test_scale_units_ok(juju: jubilant.Juju) -> None:
+    """Scale polaris to 3 units."""
+    juju.add_unit(APP_NAME, num_units=2)
+    juju.wait(jubilant.all_active, delay=5)

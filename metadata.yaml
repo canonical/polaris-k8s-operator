@@ -32,7 +32,7 @@ resources:
   polaris-image:
     type: oci-image
     description: OCI image for Polaris, both server and admin tool.
-    upstream-source: ghcr.io/canonical/charmed-polaris@sha256:5a1518e93f2add9a6308332d0a313618555fe555b65edd9e72d3c81f6d15aa9d
+    upstream-source: ghcr.io/canonical/charmed-polaris@sha256:a4f2dc9aced6833f54aaecfe1d6cb43ca17a99c56337e1c563622c6e4e9ce932
     uid: 584792
     gid: 584792
 

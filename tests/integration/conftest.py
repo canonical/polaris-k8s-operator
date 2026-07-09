@@ -1,47 +1,81 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
-#
-# The integration tests use the Jubilant library. See https://documentation.ubuntu.com/jubilant/
-# To learn more about testing, see https://documentation.ubuntu.com/ops/latest/explanation/testing/
 
 import logging
-import os
-import pathlib
-import sys
-import time
+from pathlib import Path
+from platform import machine
 
 import jubilant
 import pytest
+from dotenv import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="module")
-def juju(request: pytest.FixtureRequest):
-    """Create a temporary Juju model for running tests."""
-    with jubilant.temp_model() as juju:
-        yield juju
-
-        if request.session.testsfailed:
-            logger.info("Collecting Juju logs...")
-            time.sleep(0.5)  # Wait for Juju to process logs.
-            log = juju.debug_log(limit=1000)
-            print(log, end="", file=sys.stderr)
+def platform() -> str:
+    """Fixture to provide the platform architecture for testing."""
+    platforms = {
+        "x86_64": "amd64",
+        "aarch64": "arm64",
+    }
+    return platforms.get(machine(), "amd64")
 
 
-@pytest.fixture(scope="session")
-def charm():
-    """Return the path of the charm under test."""
-    if "CHARM_PATH" in os.environ:
-        charm_path = pathlib.Path(os.environ["CHARM_PATH"])
-        if not charm_path.exists():
-            raise FileNotFoundError(f"Charm does not exist: {charm_path}")
-        return charm_path
-    # Modify below if you're building for multiple bases or architectures.
-    charm_paths = list(pathlib.Path(".").glob("*.charm"))
-    if not charm_paths:
-        raise FileNotFoundError("No .charm file in current directory")
-    if len(charm_paths) > 1:
-        path_list = ", ".join(str(path) for path in charm_paths)
-        raise ValueError(f"More than one .charm file in current directory: {path_list}")
-    return charm_paths[0]
+@pytest.fixture(scope="module")
+def polaris_charm(platform: str) -> Path:
+    """Path to the packed polaris charm."""
+    if not (path := next(iter(Path.cwd().glob(f"*-{platform}.charm")), None)):
+        raise FileNotFoundError("Could not find packed polaris charm.")
+
+    return path
+
+
+@pytest.fixture(scope="module")
+def juju(request: pytest.FixtureRequest, platform: str):
+    keep_models = bool(request.config.getoption("--keep-models"))
+    model = request.config.getoption("--model")
+
+    if model is None:
+        with jubilant.temp_model(keep=keep_models) as juju:
+            juju.wait_timeout = 10 * 60
+            juju.model_config({"update-status-hook-interval": "60s"})
+            juju.model_constraints({"arch": platform})
+
+            yield juju  # run the test
+
+            if request.session.testsfailed:
+                log = juju.debug_log(limit=30)
+                print(log, end="")
+    else:
+        juju = jubilant.Juju()
+        juju.model = model
+        try:
+            juju.status()
+        except jubilant.CLIError:
+            juju.add_model(model)
+
+        juju.wait_timeout = 10 * 60
+        juju.model_config({"update-status-hook-interval": "60s"})
+        juju.model_constraints({"arch": platform})
+
+        yield juju  # run the test
+
+        if not keep_models:
+            juju.destroy_model(model, destroy_storage=True, force=True)
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--keep-models",
+        action="store_true",
+        default=False,
+        help="keep temporarily-created models",
+    )
+    parser.addoption(
+        "--model",
+        action="store",
+        help="Juju model to use; if not provided, a new temporary model "
+        "will be created for each test module",
+    )
