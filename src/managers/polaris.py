@@ -1,4 +1,4 @@
-# Copyright 2026 Canonical Limited
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Polaris manager."""
@@ -20,14 +20,14 @@ if TYPE_CHECKING:
 
 
 class PolarisManager(WithLogging):
-    """Kyuubi manager class."""
+    """Manage Polaris workload configuration and restarts."""
 
     def __init__(
         self,
         charm: PolarisK8sCharm,
         context: Context,
         workload: PolarisWorkload,
-    ):
+    ) -> None:
         self.charm = charm
         self.context = context
         self.workload = workload

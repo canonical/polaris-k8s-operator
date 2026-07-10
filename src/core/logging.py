@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# Copyright 2025 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Utilities for logging."""
@@ -44,22 +43,14 @@ class WithLogging:
 
     @property
     def logger(self) -> Logger:
-        """Create logger.
-
-        :return: default logger.
-        """
+        """Return a logger for the current class."""
         name_logger = str(self.__class__).replace("<class '", "").replace("'>", "")
         return getLogger(name_logger)
 
     def log_result(
         self, msg: Callable[..., str] | str, level: StrLevelTypes = "INFO"
     ) -> Callable[..., Any]:
-        """Return a decorator to allow logging of inputs/outputs.
-
-        :param msg: message to log
-        :param level: logging level
-        :return: wrapped method.
-        """
+        """Return a decorator that logs a message for the decorated result."""
 
         def wrap(x: Any) -> Any:
             if isinstance(msg, str):

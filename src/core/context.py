@@ -54,14 +54,7 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
             return None
 
     def get_secret_from_id(self, secret_id: str) -> dict[str, str]:
-        """Resolve the given id of a Juju secret and return the content as a dict.
-
-        Args:
-            secret_id (str): The id of the secret.
-
-        Returns:
-            dict: The content of the secret.
-        """
+        """Resolve a Juju secret id and return its content."""
         try:
             secret_content = self.charm.model.get_secret(id=secret_id).get_content(refresh=True)
         except ops.SecretNotFoundError:

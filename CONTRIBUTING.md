@@ -3,26 +3,24 @@
 To make contributions to this charm, you'll need a working
 [development setup](https://documentation.ubuntu.com/juju/3.6/howto/manage-your-deployment/#set-up-your-deployment-local-testing-and-development).
 
-You can create an environment for development with `tox`:
+Install the project dependencies with Poetry:
 
 ```shell
-tox devenv -e integration
-source venv/bin/activate
+poetry install --all-groups
 ```
 
 ## Testing
 
-This project uses `tox` for managing test environments. There are some pre-configured environments
-that can be used for linting and formatting code when you're preparing contributions to the charm:
+This project uses `tox` for managing test environments. The main environments are:
 
 ```shell
-tox run -e format        # update your code according to linting rules
-tox run -e lint          # code style
-tox run -e static        # static type checking
-tox run -e unit          # unit tests
-tox run -e integration   # integration tests
-tox                      # runs 'format', 'lint', 'static', and 'unit' environments
+tox run -e format              # format the source and tests
+tox run -e lint                # run formatting checks, linting, codespell, and type checks
+tox run -e unit                # run unit tests
+tox run -e integration-charm   # run charm integration tests
 ```
+
+Running `tox` without arguments runs the environments listed in `tox.ini`.
 
 ## Build the charm
 
@@ -31,5 +29,3 @@ Build the charm in this git repository using:
 ```shell
 charmcraft pack
 ```
-
-<!-- You may want to include any contribution/style guidelines in this document>

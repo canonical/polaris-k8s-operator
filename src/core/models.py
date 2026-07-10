@@ -48,7 +48,7 @@ class RelationState:
         | OpsPeerUnitRepositoryInterface[PeerUnitModel]
         | OpsOtherPeerUnitRepositoryInterface[PeerUnitModel],
         component: ops.model.Unit | ops.model.Application | None,
-    ):
+    ) -> None:
         self.relation = relation
         self.data_interface = data_interface
         self.component = component
@@ -88,7 +88,7 @@ class PolarisServer(RelationState):
         data_interface: OpsPeerUnitRepositoryInterface[PeerUnitModel]
         | OpsOtherPeerUnitRepositoryInterface[PeerUnitModel],
         component: ops.model.Unit,
-    ):
+    ) -> None:
         super().__init__(relation, data_interface, component)
         self.data_interface = data_interface
         self.unit = component
@@ -115,14 +115,14 @@ class PolarisCluster(RelationState):
         relation: ops.model.Relation | None,
         data_interface: OpsPeerRepositoryInterface[PeerAppModel],
         component: ops.model.Application,
-    ):
+    ) -> None:
         super().__init__(relation, data_interface, component)
         self.app = component
         self.data_interface = data_interface
 
     @property
     def admin_password(self) -> str:
-        """Retrieve the password for the valkey admin user."""
+        """Retrieve the password for the Polaris admin user."""
         if not self.model:
             return ""
         return self.model.charmed_operator_password or ""

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class BaseEventHandler(Object, WithLogging):
-    """Base class for all Event Handler classes in the Spark Integration Hub."""
+    """Base class for Polaris event handlers."""
 
     charm: PolarisK8sCharm
     context: Context

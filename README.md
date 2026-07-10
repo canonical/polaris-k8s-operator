@@ -1,26 +1,12 @@
-<!--
-Avoid using this README file for information that is maintained or published elsewhere, e.g.:
-
-* charmcraft.yaml > published on Charmhub
-* documentation > published on (or linked to from) Charmhub
-* detailed contribution guide > documentation or CONTRIBUTING.md
-
-Use links instead.
--->
-
 # polaris-k8s
 
 Charmhub package name: polaris-k8s
 More information: https://charmhub.io/polaris-k8s
 
-Describe your charm in one or two sentences.
+polaris-k8s is a Kubernetes charm for Apache Polaris. It deploys and manages an
+Iceberg REST catalog that clients can use to interact with Apache Iceberg tables.
 
 ## Other resources
 
-<!-- If your charm is documented somewhere else other than Charmhub, provide a link separately. -->
-
-- [Read more](https://example.com)
-
-- [Contributing](CONTRIBUTING.md) <!-- or link to other contribution documentation -->
-
-- See the [Juju documentation](https://documentation.ubuntu.com/juju/3.6/howto/manage-charms/) for more information about developing and improving charms.
+- [Contributing](CONTRIBUTING.md)
+- [Juju documentation](https://documentation.ubuntu.com/juju/3.6/howto/manage-charms/)

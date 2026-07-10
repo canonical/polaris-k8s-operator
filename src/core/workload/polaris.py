@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
-# Copyright 2024 Canonical Limited
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Module containing all business logic related to the workload."""
 
 import ops.pebble
+import yaml
 from charmlibs import pathops
 from ops.model import Container
-import yaml
 
 from core.constants import (
     POLARIS_APPLICATION_PROPERTIES,
@@ -18,9 +17,9 @@ from core.logging import WithLogging
 
 
 class PolarisWorkload(WithLogging):
-    """Class representing workload implementation for Polaris on K8s."""
+    """Represent the Polaris workload on Kubernetes."""
 
-    def __init__(self, container: Container):
+    def __init__(self, container: Container) -> None:
         self.container = container
         self.fs = pathops.ContainerPath("/", container=container)
 
@@ -56,17 +55,17 @@ class PolarisWorkload(WithLogging):
         return service.is_running()
 
     def restart(self) -> None:
-        """Restarts the workload service."""
+        """Restart the workload service."""
         self.stop()
         self.start()
 
-    def start(self):
-        """Execute business-logic for starting the workload."""
+    def start(self) -> None:
+        """Execute business logic for starting the workload."""
         self.container.add_layer(POLARIS_SERVICE_NAME, self._base_polaris_layer, combine=True)
         self.container.restart(POLARIS_SERVICE_NAME)
 
-    def stop(self):
-        """Execute business-logic for stopping the workload."""
+    def stop(self) -> None:
+        """Execute business logic for stopping the workload."""
         if self.ready and POLARIS_SERVICE_NAME in self.container.get_services():
             self.container.stop(POLARIS_SERVICE_NAME)
 

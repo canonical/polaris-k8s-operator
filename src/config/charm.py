@@ -4,7 +4,7 @@
 """Structured configuration for the Polaris charm."""
 
 import re
-from typing import Annotated
+from typing import Annotated, Any, Callable
 
 from charms.data_platform_libs.v1.data_models import BaseConfigModel
 from pydantic import Field, model_serializer
@@ -18,7 +18,7 @@ class PolarisCharmConfig(BaseConfigModel):
     system_user: Annotated[str | None, Field(alias="system-user", pattern=SECRET_REGEX)] = None
 
     @model_serializer(mode="wrap")
-    def serialize_and_exclude(self, handler):
+    def serialize_and_exclude(self, handler: Callable[["PolarisCharmConfig"], Any]) -> Any:
         """Exclude secrets."""
         data = handler(self)
         if isinstance(data, dict):

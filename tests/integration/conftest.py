@@ -1,7 +1,10 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Generator
 from pathlib import Path
 from platform import machine
 
@@ -33,7 +36,7 @@ def polaris_charm(platform: str) -> Path:
 
 
 @pytest.fixture(scope="module")
-def juju(request: pytest.FixtureRequest, platform: str):
+def juju(request: pytest.FixtureRequest, platform: str) -> Generator[jubilant.Juju, None, None]:
     keep_models = bool(request.config.getoption("--keep-models"))
     model = request.config.getoption("--model")
 
@@ -66,7 +69,7 @@ def juju(request: pytest.FixtureRequest, platform: str):
             juju.destroy_model(model, destroy_storage=True, force=True)
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--keep-models",
         action="store_true",

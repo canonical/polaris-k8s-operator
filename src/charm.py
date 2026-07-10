@@ -2,7 +2,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charm the application."""
+"""Apache Polaris Kubernetes charm."""
 
 import logging
 
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 class PolarisK8sCharm(ops.CharmBase):
-    """Charm the application."""
+    """Manage Apache Polaris on Kubernetes."""
 
     def __init__(self, framework: ops.Framework) -> None:
         super().__init__(framework)

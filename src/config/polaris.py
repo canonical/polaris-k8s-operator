@@ -1,4 +1,4 @@
-# Copyright 2026  Canonical Limited
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Polaris workload configuration."""
