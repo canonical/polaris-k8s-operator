@@ -144,18 +144,12 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
         return SystemUserSecretValidation(configured=True, password=password)
 
-    def _set_rotating_credentials_status(self) -> None:
-        """Set a maintenance status while rotating root principal credentials."""
-        status = getattr(self.charm, "status", None)
-        if status:
-            status.set_running_status(
-                CharmStatuses.ROTATING_ROOT_PRINCIPAL_CREDENTIALS,
-                scope="unit",
-            )
-
     def _rotate_admin_password(self, old_password: str, new_password: str) -> bool:
         """Rotate root principal credentials through Polaris management API."""
-        self._set_rotating_credentials_status()
+        self.charm.status.set_running_status(
+            CharmStatuses.ROTATING_ROOT_PRINCIPAL_CREDENTIALS,
+            scope="unit",
+        )
         try:
             self.polaris_manager.reset_root_principal_credentials(old_password, new_password)
         except Exception:
