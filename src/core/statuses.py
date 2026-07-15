@@ -3,12 +3,10 @@
 
 """File containing all possible statuses for the Polaris charm."""
 
-from enum import Enum
-
 from data_platform_helpers.advanced_statuses.models import StatusObject
 
 
-class CharmStatuses(Enum):
+class _CharmStatuses:
     """Generic status objects related to the charm."""
 
     ACTIVE_IDLE = StatusObject(status="active", message="")
@@ -25,7 +23,10 @@ class CharmStatuses(Enum):
     )
 
 
-class ConfigStatuses(Enum):
+CharmStatuses = _CharmStatuses()
+
+
+class _ConfigStatuses:
     """Status objects related to config options."""
 
     @staticmethod
@@ -47,3 +48,6 @@ class ConfigStatuses(Enum):
             message=f"Invalid config(s): {fields_str}",
             action=f"Fix invalid config(s): {fields_str}",
         )
+
+
+ConfigStatuses = _ConfigStatuses()

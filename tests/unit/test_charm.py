@@ -50,7 +50,7 @@ def test_start_polaris(polaris_context: Context) -> None:
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert out.unit_status.message == CharmStatuses.WAITING_PEBBLE.value.message
+    assert out.unit_status.message == CharmStatuses.WAITING_PEBBLE.message
 
 
 def test_bare_leader_deployment_writes_config_with_random_password(
@@ -216,7 +216,7 @@ def test_configured_system_user_secret_not_found_sets_blocked_status(
     out = polaris_context.run(polaris_context.on.config_changed(), state)
 
     # Then
-    assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST.value.message
+    assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST.message
 
 
 def test_configured_system_user_secret_without_grant_sets_blocked_status(
@@ -243,8 +243,7 @@ def test_configured_system_user_secret_without_grant_sets_blocked_status(
 
     # Then
     assert (
-        out.unit_status.message
-        == CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION.value.message
+        out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION.message
     )
 
 
@@ -270,7 +269,7 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
     out = polaris_context.run(polaris_context.on.config_changed(), state)
 
     # Then
-    assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_INVALID.value.message
+    assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_INVALID.message
 
 
 def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed(

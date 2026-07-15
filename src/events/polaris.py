@@ -127,19 +127,19 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
         except ops.SecretNotFoundError:
             return SystemUserSecretValidation(
                 configured=True,
-                status=CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST.value,
+                status=CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST,
             )
         except ops.ModelError:
             return SystemUserSecretValidation(
                 configured=True,
-                status=CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION.value,
+                status=CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION,
             )
 
         password = self._admin_password_from_secret_content(content)
         if not password:
             return SystemUserSecretValidation(
                 configured=True,
-                status=CharmStatuses.SYSTEM_USER_SECRET_INVALID.value,
+                status=CharmStatuses.SYSTEM_USER_SECRET_INVALID,
             )
 
         return SystemUserSecretValidation(configured=True, password=password)
@@ -254,6 +254,6 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
                 status_list.append(system_user_status)
 
         if not self.polaris_workload.ready:
-            status_list.append(CharmStatuses.WAITING_PEBBLE.value)
+            status_list.append(CharmStatuses.WAITING_PEBBLE)
 
-        return status_list or [CharmStatuses.ACTIVE_IDLE.value]
+        return status_list or [CharmStatuses.ACTIVE_IDLE]
