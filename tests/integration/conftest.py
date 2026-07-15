@@ -11,6 +11,7 @@ from platform import machine
 import jubilant
 import pytest
 from dotenv import load_dotenv
+
 from .supporting_charms import Metastore, SingleVariantCharmVersion
 
 load_dotenv()

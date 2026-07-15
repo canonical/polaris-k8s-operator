@@ -4,7 +4,6 @@
 """Supporting charms for integration tests."""
 
 from dataclasses import dataclass, fields
-
 from typing import TypedDict
 
 

@@ -108,6 +108,8 @@ class PolarisManager(WithLogging):
             if not self.charm.unit.is_leader():
                 self.logger.info("Skipping workload restart, metastore is not bootstrapped")
                 return
+            # Note: Polaris 1.7.0 should make the bootstrap idempotent, so we might adapt
+            # this part in the future
             self.workload.bootstrap_metastore(REALM, config.bootstrap_credentials)
             self.context.cluster.set_metastore_bootstrapped(True)
             should_restart = True

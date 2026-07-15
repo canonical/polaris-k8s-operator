@@ -4,12 +4,16 @@
 from pathlib import Path
 
 import pytest
+from ops.pebble import Layer, ServiceStatus
 from ops.testing import Container, Context, Exec, Model, Mount, PeerRelation, Relation
 
 from charm import PolarisK8sCharm
 from core.constants import (
     PEERS_RELATION_NAME,
+    POLARIS_APPLICATION_PROPERTIES,
+    POLARIS_BOOTSTRAP_COMMAND,
     POLARIS_CONTAINER_NAME,
+    POLARIS_SERVICE_NAME,
 )
 
 
@@ -41,7 +45,26 @@ def polaris_container(tmp_path: Path) -> Container:
         name=POLARIS_CONTAINER_NAME,
         can_connect=True,
         mounts={"polaris": Mount(location="/etc/polaris", source=tmp_path)},
-        execs=[Exec(["/opt/polaris/bin/admin"])],
+        execs=[Exec(list(POLARIS_BOOTSTRAP_COMMAND))],
+        service_statuses={POLARIS_SERVICE_NAME: ServiceStatus.ACTIVE},
+        layers={
+            POLARIS_SERVICE_NAME: Layer(
+                {
+                    "services": {
+                        POLARIS_SERVICE_NAME: {
+                            "override": "merge",
+                            "startup": "enabled",
+                            "on-failure": "restart",
+                            "environment": {
+                                "QUARKUS_CONFIG_LOCATIONS": (
+                                    f"file://{POLARIS_APPLICATION_PROPERTIES}"
+                                )
+                            },
+                        }
+                    }
+                }
+            )
+        },
     )
 
 

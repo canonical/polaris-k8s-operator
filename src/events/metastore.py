@@ -23,7 +23,7 @@ from data_platform_helpers.advanced_statuses.types import Scope
 from core.constants import METASTORE_RELATION_NAME, POLARIS_METASTORE_DATABASE_NAME
 from core.context import Context
 from core.logging import WithLogging
-from core.statuses import CharmStatuses, MetastoreStatuses
+from core.statuses import MetastoreStatuses
 from core.workload.polaris import PolarisWorkload
 from events import BaseEventHandler
 from managers.polaris import PolarisManager

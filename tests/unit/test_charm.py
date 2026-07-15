@@ -45,13 +45,13 @@ def test_start_polaris_missing_metastore_relation(polaris_context: Context) -> N
     state = State(
         config={},
         containers=[Container(name=POLARIS_CONTAINER_NAME, can_connect=False)],
-        # relations=[metastore_relation],
     )
 
     # When
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
+    # Multiple statuses here as we don't have the container available
     assert MetastoreStatuses.METASTORE_RELATION_MISSING.message in out.unit_status.message
 
 
@@ -69,17 +69,20 @@ def test_start_polaris_with_metastore(
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert out.unit_status.message == CharmStatuses.WAITING_PEBBLE.message
+    # Multiple statuses here as we don't have the container available
+    assert CharmStatuses.WAITING_PEBBLE.message in out.unit_status.message
 
 
 def test_polaris_missing_metastore_data(
-    polaris_context: Context, metastore_relation: Relation
+    polaris_container: Container,
+    polaris_context: Context,
+    metastore_relation: Relation,
 ) -> None:
     # Given
     metastore_relation = replace(metastore_relation, remote_app_data={})
     state = State(
         config={},
-        containers=[Container(name=POLARIS_CONTAINER_NAME, can_connect=True)],
+        containers=[polaris_container],
         relations=[metastore_relation],
     )
 
@@ -87,7 +90,9 @@ def test_polaris_missing_metastore_data(
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert MetastoreStatuses.METASTORE_NOT_READY.message in out.unit_status.message
+    # Note: we actually would have multiple statuses here, as not having the metastore
+    # would mean that the service is not running.
+    assert MetastoreStatuses.METASTORE_NOT_READY.message == out.unit_status.message
 
 
 def test_bare_leader_deployment_writes_config_with_random_password(
