@@ -15,6 +15,7 @@ warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 from core.constants import POLARIS_CONTAINER_NAME
 from core.context import Context
 from core.workload.polaris import PolarisWorkload
+from events.metastore import MetastoreEvents
 from events.polaris import PolarisEvents
 
 logger = logging.getLogger(__name__)
@@ -35,12 +36,14 @@ class PolarisK8sCharm(ops.CharmBase):
         # Context
         self.context = Context(self)
 
-        # Event
+        # Events
         self.polaris_events = PolarisEvents(self, self.context, self.polaris_workload)
+        self.metastore_events = MetastoreEvents(self, self.context, self.polaris_workload)
 
         self.status = StatusHandler(
             self,
             self.polaris_events,
+            self.metastore_events,
         )
 
 

@@ -10,6 +10,7 @@ import yaml
 from core.constants import ADMIN_USER
 
 from .helpers import polaris_management_api
+from .supporting_charms import SingleVariantCharmVersion
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,18 @@ def test_deploy(juju: jubilant.Juju, polaris_charm: Path) -> None:
     """Deploy polaris."""
     resources = {"polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"]}
     juju.deploy(polaris_charm, app="polaris-k8s", resources=resources)
+    logger.info("Waiting for polaris to be idle...")
+    juju.wait(jubilant.all_blocked, delay=5)
+
+
+def test_integrate_metastore(juju: jubilant.Juju, metastore: SingleVariantCharmVersion) -> None:
+    """Integrate polaris with its metastore."""
+    juju.deploy(**metastore.to_dict())
+    logger.info("Waiting for metastore app to be active...")
+    juju.wait(lambda status: jubilant.all_active(status, metastore.app), delay=15)
+
+    juju.integrate(APP_NAME, metastore.app)
+    logger.info("Waiting for polaris to be active...")
     juju.wait(jubilant.all_active, delay=15)
 
 

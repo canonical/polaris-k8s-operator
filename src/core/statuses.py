@@ -10,7 +10,12 @@ class _CharmStatuses:
     """Generic status objects related to the charm."""
 
     ACTIVE_IDLE = StatusObject(status="active", message="")
-    WAITING_PEBBLE = StatusObject(status="maintenance", message="Waiting for Pebble")
+    NOT_RUNNING = StatusObject(status="maintenance", message="Polaris is not serving requests")
+    ROTATING_ROOT_PRINCIPAL_CREDENTIALS = StatusObject(
+        status="maintenance",
+        message="Rotating Polaris root principal credentials",
+        running="blocking",
+    )
     SYSTEM_USER_SECRET_DOES_NOT_EXIST = StatusObject(
         status="blocked", message="Secret provided as system-user does not exist"
     )
@@ -21,6 +26,7 @@ class _CharmStatuses:
     SYSTEM_USER_SECRET_INVALID = StatusObject(
         status="blocked", message="Secret provided as system-user has invalid content"
     )
+    WAITING_PEBBLE = StatusObject(status="maintenance", message="Waiting for Pebble")
 
 
 CharmStatuses = _CharmStatuses()
@@ -51,3 +57,29 @@ class _ConfigStatuses:
 
 
 ConfigStatuses = _ConfigStatuses()
+
+
+class _MetastoreStatuses:
+    """Status objects related to the metastore integration."""
+
+    METASTORE_RELATION_MISSING = StatusObject(
+        status="blocked",
+        message="Missing mandatory metastore relation",
+        action="Relate the charm to a PostgreSQL database using the metastore endpoint",
+    )
+    METASTORE_NOT_READY = StatusObject(
+        status="waiting",
+        message="Waiting for metastore relation data",
+    )
+
+    @staticmethod
+    def provider_error(message: str, resolution: str) -> StatusObject:
+        """Return a status for fatal provider-side metastore errors."""
+        return StatusObject(
+            status="blocked",
+            message=message,
+            action=resolution,
+        )
+
+
+MetastoreStatuses = _MetastoreStatuses()

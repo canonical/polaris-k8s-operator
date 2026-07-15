@@ -144,8 +144,27 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
         return SystemUserSecretValidation(configured=True, password=password)
 
-    def _ensure_cluster_credentials(self) -> bool:
-        """Ensure leader-owned peer state has the credentials required by Polaris."""
+    def _set_rotating_credentials_status(self) -> None:
+        """Set a maintenance status while rotating root principal credentials."""
+        status = getattr(self.charm, "status", None)
+        if status:
+            status.set_running_status(
+                CharmStatuses.ROTATING_ROOT_PRINCIPAL_CREDENTIALS,
+                scope="unit",
+            )
+
+    def _rotate_admin_password(self, old_password: str, new_password: str) -> bool:
+        """Rotate root principal credentials through Polaris management API."""
+        self._set_rotating_credentials_status()
+        try:
+            self.polaris_manager.reset_root_principal_credentials(old_password, new_password)
+        except Exception:
+            self.logger.exception("Failed to rotate Polaris root principal credentials")
+            return False
+        return True
+
+    def _ensure_admin_credentials(self) -> bool:
+        """Ensure leader-owned root principal credentials are set."""
         if not self.charm.unit.is_leader():
             return True
 
@@ -158,16 +177,29 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
         admin_password = (
             system_user.password or cluster.admin_password or secrets.token_hex(RANDOM_KEY_SIZE)
         )
+
+        if cluster.admin_password == admin_password:
+            return True
+
+        if cluster.metastore_bootstrapped and not self._rotate_admin_password(
+            cluster.admin_password,
+            admin_password,
+        ):
+            return False
+
+        cluster.set_admin_password(admin_password)
+        cluster.increment_epoch()
+        return True
+
+    def _ensure_token_broker_key(self) -> None:
+        """Ensure leader-owned token broker key is set."""
+        if not self.charm.unit.is_leader():
+            return
+
+        cluster = self.context.cluster
         shared_key = cluster.shared_key or secrets.token_hex(RANDOM_KEY_SIZE)
-
-        if cluster.admin_password != admin_password:
-            cluster.set_admin_password(admin_password)
-            cluster.increment_epoch()
-
         if cluster.shared_key != shared_key:
             cluster.set_shared_key(shared_key)
-
-        return True
 
     def _reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile peer state and local workload configuration."""
@@ -183,9 +215,10 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        if not self._ensure_cluster_credentials():
+        if not self._ensure_admin_credentials():
             return
 
+        self._ensure_token_broker_key()
         self.polaris_manager.update()
         # TODO(console): Update console_manager as well.
 
@@ -255,5 +288,8 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
         if not self.polaris_workload.ready:
             status_list.append(CharmStatuses.WAITING_PEBBLE)
+
+        if not self.polaris_workload.active:
+            status_list.append(CharmStatuses.NOT_RUNNING)
 
         return status_list or [CharmStatuses.ACTIVE_IDLE]

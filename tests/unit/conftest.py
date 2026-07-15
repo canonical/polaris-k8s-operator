@@ -4,7 +4,7 @@
 from pathlib import Path
 
 import pytest
-from ops.testing import Container, Context, Model, Mount, PeerRelation
+from ops.testing import Container, Context, Exec, Model, Mount, PeerRelation, Relation
 
 from charm import PolarisK8sCharm
 from core.constants import (
@@ -41,4 +41,23 @@ def polaris_container(tmp_path: Path) -> Container:
         name=POLARIS_CONTAINER_NAME,
         can_connect=True,
         mounts={"polaris": Mount(location="/etc/polaris", source=tmp_path)},
+        execs=[Exec(["/opt/polaris/bin/admin"])],
+    )
+
+
+@pytest.fixture
+def metastore_relation() -> Relation:
+    return Relation(
+        endpoint="metastore",
+        interface="postgresql_client",
+        remote_app_name="metastore",
+        local_app_data={
+            "database": "polaris",
+        },
+        remote_app_data={
+            "database": "polaris",
+            "endpoints": "postgresql-k8s-primary:5432",
+            "username": "polaris",
+            "password": "pwd",
+        },
     )

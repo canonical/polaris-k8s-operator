@@ -11,9 +11,11 @@ from platform import machine
 import jubilant
 import pytest
 from dotenv import load_dotenv
+from .supporting_charms import Metastore, SingleVariantCharmVersion
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+logging.getLogger("jubilant.wait").setLevel(logging.WARNING)
 
 
 @pytest.fixture(scope="module")
@@ -82,3 +84,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Juju model to use; if not provided, a new temporary model "
         "will be created for each test module",
     )
+
+
+@pytest.fixture(scope="module")
+def metastore(platform: str) -> SingleVariantCharmVersion:
+    return Metastore[platform]
