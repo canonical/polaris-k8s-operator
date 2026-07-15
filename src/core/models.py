@@ -86,68 +86,63 @@ class Metastore:
     """State collection for the metastore relation."""
 
     def __init__(self, relation: ops.model.Relation | None, model: ops.model.Model) -> None:
-        self.relation = relation
-        self.model = model
+        self._relation = relation
+        self._model = model
 
     @property
-    def _relation_data(self) -> Mapping[str, str]:
+    def relation_data(self) -> Mapping[str, str]:
         """Return the metastore provider relation data."""
-        if not self.relation or not self.relation.app:
+        if not self._relation or not self._relation.app:
             return {}
-        return self.relation.data[self.relation.app]
+        return self._relation.data[self._relation.app]
 
-    @property
     def _user_secret_content(self) -> dict[str, str]:
         """Return the metastore user secret content."""
-        if not (secret_id := self._relation_data.get("secret-user")):
+        if not (secret_id := self.relation_data.get("secret-user")):
             return {}
 
         try:
-            return self.model.get_secret(id=secret_id).get_content(refresh=True)
+            return self._model.get_secret(id=secret_id).get_content(refresh=True)
         except (ops.ModelError, ops.SecretNotFoundError):
             logger.warning("Could not access metastore user secret")
             return {}
 
     @property
-    def resource(self) -> str:
+    def database(self) -> str:
         """Return the metastore database name."""
-        return self._relation_data.get("database") or POLARIS_METASTORE_DATABASE_NAME
-
-    @property
-    def endpoints(self) -> str:
-        """Return the metastore endpoints."""
-        return self._relation_data.get("endpoints") or ""
+        return self.relation_data.get("database") or POLARIS_METASTORE_DATABASE_NAME
 
     @property
     def endpoint(self) -> str:
         """Return the first metastore endpoint."""
-        return self.endpoints.split(",")[0]
+        endpoints = self.relation_data.get("endpoints") or ""
+        return endpoints.split(",")[0]
 
     @property
     def username(self) -> str:
         """Return the metastore username."""
         return (
-            self._user_secret_content.get("username") or self._relation_data.get("username") or ""
+            self._user_secret_content().get("username") or self.relation_data.get("username") or ""
         )
 
     @property
     def password(self) -> str:
         """Return the metastore password."""
         return (
-            self._user_secret_content.get("password") or self._relation_data.get("password") or ""
+            self._user_secret_content().get("password") or self.relation_data.get("password") or ""
         )
 
     @property
     def jdbc_url(self) -> str:
         """Return the JDBC URL for the metastore."""
-        if not self.endpoint or not self.resource:
+        if not self.endpoint or not self.database:
             return ""
-        return f"jdbc:postgresql://{self.endpoint}/{self.resource}"
+        return f"jdbc:postgresql://{self.endpoint}/{self.database}"
 
     @property
     def ready(self) -> bool:
         """Return whether the metastore relation has complete connection data."""
-        return bool(self.endpoint and self.username and self.password and self.resource)
+        return bool(self.endpoint and self.username and self.password and self.database)
 
 
 @final
