@@ -5,27 +5,18 @@
 """Apache Polaris Kubernetes charm."""
 
 import logging
+import warnings
 
 import ops
 from data_platform_helpers.advanced_statuses.handler import StatusHandler
+from pydantic.warnings import UnsupportedFieldAttributeWarning
 
+warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 from core.constants import POLARIS_CONTAINER_NAME
 from core.context import Context
 from core.workload.polaris import PolarisWorkload
 from events.polaris import PolarisEvents
 
-logging.captureWarnings(True)
-py_warnings_logger = logging.getLogger("py.warnings")
-
-
-class _PydanticWarningFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        if "UnsupportedFieldAttributeWarning" in record.getMessage():
-            return False
-        return True
-
-
-py_warnings_logger.addFilter(_PydanticWarningFilter())
 logger = logging.getLogger(__name__)
 
 

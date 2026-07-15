@@ -64,7 +64,7 @@ lint.ignore = [
   "D409",
   "D413",
 ]
-lint.per-file-ignores = { "tests/*" = ["D100", "D101", "D102", "D103", "D104"], "src/*/__init__.py" = ["D104"] }
+lint.per-file-ignores = { "src/charm.py" = ["E402"], "tests/*" = ["D100", "D101", "D102", "D103", "D104"], "src/*/__init__.py" = ["D104"] }
 extend-exclude = ["__pycache__", "*.egg_info"]
 
 [tool.ruff.lint.mccabe]
