@@ -55,7 +55,6 @@ class MetastoreEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
             extra_user_roles="SUPERUSER",
         )
 
-        self.framework.observe(self.charm.on.config_changed, self._on_config_changed)
         self.framework.observe(self.metastore.on.database_created, self._on_update)
         self.framework.observe(self.metastore.on.endpoints_changed, self._on_update)
         self.framework.observe(self.metastore.on.status_raised, self._on_status_update)
@@ -65,31 +64,8 @@ class MetastoreEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
             self._on_relation_broken,
         )
 
-    def _ensure_metastore_request(self) -> None:
-        """Ensure the metastore relation has the V0 database request."""
-        if not self.charm.unit.is_leader():
-            return
-
-        for relation in self.metastore.relations:
-            relation_data = relation.data[self.charm.app]
-            if (
-                relation_data.get("database") == POLARIS_METASTORE_DATABASE_NAME
-                and relation_data.get("extra-user-roles") == "SUPERUSER"
-            ):
-                continue
-
-            self.metastore.update_relation_data(
-                relation.id,
-                {
-                    "database": POLARIS_METASTORE_DATABASE_NAME,
-                    "extra-user-roles": "SUPERUSER",
-                },
-            )
-
     def _reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile metastore relation data and workload configuration."""
-        self._ensure_metastore_request()
-
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
             if event:
@@ -107,10 +83,6 @@ class MetastoreEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
             return
 
         self.polaris_manager.update()
-
-    def _on_config_changed(self, event: ops.ConfigChangedEvent) -> None:
-        """Handle config-changed events."""
-        self._reconcile(event)
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle metastore relation events."""
