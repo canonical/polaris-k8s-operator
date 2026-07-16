@@ -148,7 +148,7 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
         """Rotate root principal credentials through Polaris management API."""
         self.charm.status.set_running_status(
             CharmStatuses.ROTATING_ROOT_PRINCIPAL_CREDENTIALS,
-            scope="unit",
+            scope="app",
         )
         try:
             self.polaris_manager.reset_root_principal_credentials(old_password, new_password)
