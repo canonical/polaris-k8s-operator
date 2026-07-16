@@ -43,7 +43,7 @@ class PolarisManager(WithLogging):
         self.context = context
         self.workload = workload
 
-    def _polaris_management_api(self, client_secret: str) -> PolarisDefaultApi:
+    def _api(self, client_secret: str) -> PolarisDefaultApi:
         """Return an authenticated Polaris management API object."""
         options = Namespace(
             proxy=None,
@@ -70,7 +70,7 @@ class PolarisManager(WithLogging):
 
     def reset_root_principal_credentials(self, current_password: str, new_password: str) -> None:
         """Reset root principal credentials through the Polaris management API."""
-        api = self._polaris_management_api(client_secret=current_password)
+        api = self._api(client_secret=current_password)
         api.reset_credentials(
             self._root_principal_name(api),
             ResetPrincipalRequest(clientId=ADMIN_USER, clientSecret=new_password),

@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class SystemUserSecretValidation:
+class SystemUserSecretValidated:
     """Validation result for the configured system-user secret."""
 
     configured: bool
@@ -117,41 +117,41 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
         return password
 
-    def _validate_system_user_secret(self) -> SystemUserSecretValidation:
+    def _validate_system_user_secret(self) -> SystemUserSecretValidated:
         """Validate the configured system-user secret and extract its password."""
         if not self._configured_system_user_secret_id():
-            return SystemUserSecretValidation(configured=False)
+            return SystemUserSecretValidated(configured=False)
 
         try:
             content = self._get_system_user_secret_content()
         except ops.SecretNotFoundError:
-            return SystemUserSecretValidation(
+            return SystemUserSecretValidated(
                 configured=True,
                 status=CharmStatuses.SYSTEM_USER_SECRET_DOES_NOT_EXIST,
             )
         except ops.ModelError:
-            return SystemUserSecretValidation(
+            return SystemUserSecretValidated(
                 configured=True,
                 status=CharmStatuses.SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION,
             )
 
         password = self._admin_password_from_secret_content(content)
         if not password:
-            return SystemUserSecretValidation(
+            return SystemUserSecretValidated(
                 configured=True,
                 status=CharmStatuses.SYSTEM_USER_SECRET_INVALID,
             )
 
-        return SystemUserSecretValidation(configured=True, password=password)
+        return SystemUserSecretValidated(configured=True, password=password)
 
-    def _rotate_admin_password(self, old_password: str, new_password: str) -> bool:
+    def _rotate_admin_password(self, current_password: str, new_password: str) -> bool:
         """Rotate root principal credentials through Polaris management API."""
         self.charm.status.set_running_status(
             CharmStatuses.ROTATING_ROOT_PRINCIPAL_CREDENTIALS,
             scope="app",
         )
         try:
-            self.polaris_manager.reset_root_principal_credentials(old_password, new_password)
+            self.polaris_manager.reset_root_principal_credentials(current_password, new_password)
         except Exception:
             self.logger.exception("Failed to rotate Polaris root principal credentials")
             return False
