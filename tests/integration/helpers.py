@@ -37,6 +37,8 @@ S3Info = TypedDict(
         "bucket": str,
         "path": str,
         "ca_bundle_path": str,
+        "role_arn": str,
+        "user_arn": str,
     },
 )
 

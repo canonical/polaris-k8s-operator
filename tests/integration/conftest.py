@@ -13,6 +13,7 @@ import boto3.session
 import jubilant
 import pytest
 from botocore.client import Config
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 from .helpers import S3Info
@@ -109,18 +110,21 @@ def s3_credentials(request: pytest.FixtureRequest) -> Generator[S3Info, None, No
     access_key = os.environ["S3_ACCESS_KEY"]
     secret_key = os.environ["S3_SECRET_KEY"]
     endpoint_url = os.environ["S3_SERVER_URL"]
+    ca_bundle_path = os.environ.get("S3_CA_BUNDLE_PATH", "")
+    verify = ca_bundle_path or False
 
     session = boto3.session.Session(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     s3 = session.resource(
         service_name="s3",
         endpoint_url=endpoint_url,
-        verify=False,
+        verify=verify,
         region_name="us-east-1",
         config=Config(
             connect_timeout=60,
             retries={"max_attempts": 4},
             request_checksum_calculation="when_supported",
             response_checksum_validation="when_supported",
+            s3={"addressing_style": "path"},
         ),
     )
     test_bucket = s3.Bucket(BUCKET_NAME)
@@ -139,14 +143,19 @@ def s3_credentials(request: pytest.FixtureRequest) -> Generator[S3Info, None, No
         "secret_key": secret_key,
         "bucket": BUCKET_NAME,
         "path": PATH_NAME,
-        "ca_bundle_path": os.environ.get("S3_CA_BUNDLE_PATH", ""),
+        "ca_bundle_path": ca_bundle_path,
         "region": "us-east-1",
+        "role_arn": os.environ.get("S3_ROLE_ARN", ""),
+        "user_arn": os.environ.get("S3_USER_ARN", ""),
     }
 
     if not keep_models:
         logger.info("Tearing down test bucket...")
-        for obj in test_bucket.objects.all():
-            # We need to iterate over keys because delete_objects (plural) has mandatory checksum
-            obj.delete()
+        try:
+            for obj in test_bucket.objects.all():
+                # Iterate over keys because delete_objects has a mandatory checksum.
+                obj.delete()
 
-        test_bucket.delete()
+            test_bucket.delete()
+        except ClientError as e:
+            logger.warning("Could not tear down test bucket: %s", e)

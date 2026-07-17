@@ -15,6 +15,9 @@ SECRET_REGEX = re.compile("secret:[a-z0-9]{20}")
 class PolarisCharmConfig(BaseConfigModel):
     """Charm structured configuration."""
 
+    # TODO(client): the next two configuration option are related to object storage,
+    # but will only be truly useful once we create catalogs by integrating with a client
+    # application.
     storage_access_model: Annotated[str, Field(alias="storage-access-model")]
     sts_endpoint: Annotated[str, Field(alias="sts-endpoint")]
     system_user: Annotated[str | None, Field(alias="system-user", pattern=SECRET_REGEX)] = None
