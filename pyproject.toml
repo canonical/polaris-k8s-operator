@@ -36,7 +36,8 @@ integration = [
   "jubilant>=1.8.0",
   "pytest>=9.0.0",
   "python-dotenv (>=1.2.2,<2.0.0)",
-  "boto3 (>=1.43.50,<2.0.0)",
+  "boto3 (>=1.43.3,<1.43.47)",
+  "pyiceberg[pyarrow,s3fs] (>=0.10.0,<1.0.0)",
 ]
 
 [tool.coverage.run]

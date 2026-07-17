@@ -5,7 +5,7 @@ summary: Run integration-storage tests
 
 prepare: |
   # Generate TLS certificates for MicroCeph RGW
-  IP=$(ip -4 -j route get 2.2.2.2 | jq -r '.[] | .prefsrc')
+  export IP=$(ip -4 -j route get 2.2.2.2 | jq -r '.[] | .prefsrc')
   mkdir -p /tmp/certs
   openssl genrsa -out /tmp/certs/ca.key 2048
   openssl req -x509 -new -nodes -key /tmp/certs/ca.key \
@@ -22,11 +22,11 @@ prepare: |
     -days 365 -extfile /tmp/certs/extfile.cnf
 
   # Bootstrap MicroCeph with TLS-enabled RGW
-  microceph cluster bootstrap
-  microceph disk add loop,1G,3
+  sudo microceph cluster bootstrap
+  sudo microceph disk add loop,1G,3
   SERVER_CRT_B64=$(base64 -w0 /tmp/certs/server.crt)
   SERVER_KEY_B64=$(base64 -w0 /tmp/certs/server.key)
-  microceph enable rgw \
+  sudo microceph enable rgw \
     --ssl-certificate "$SERVER_CRT_B64" \
     --ssl-private-key "$SERVER_KEY_B64"
 
@@ -43,12 +43,12 @@ prepare: |
     echo "Waiting for RGW ($i/30)..."
     sleep 5
   done
-  microceph.radosgw-admin user create \
+  sudo microceph.radosgw-admin user create \
     --uid test --display-name test \
     --access-key=foo --secret-key=bar
 
   # Create an RGW STS role for Polaris credential vending
-  microceph.radosgw-admin caps add --uid="test" --caps="roles=*"
+  sudo microceph.radosgw-admin caps add --uid="test" --caps="roles=*"
   cat > /tmp/assume-role-policy.json <<'EOF'
   {
     "Version": "2012-10-17",

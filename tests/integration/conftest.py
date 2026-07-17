@@ -111,13 +111,12 @@ def s3_credentials(request: pytest.FixtureRequest) -> Generator[S3Info, None, No
     secret_key = os.environ["S3_SECRET_KEY"]
     endpoint_url = os.environ["S3_SERVER_URL"]
     ca_bundle_path = os.environ.get("S3_CA_BUNDLE_PATH", "")
-    verify = ca_bundle_path or False
 
     session = boto3.session.Session(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     s3 = session.resource(
         service_name="s3",
         endpoint_url=endpoint_url,
-        verify=verify,
+        verify=False,
         region_name="us-east-1",
         config=Config(
             connect_timeout=60,
