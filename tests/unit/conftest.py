@@ -9,11 +9,13 @@ from ops.testing import Container, Context, Exec, Model, Mount, PeerRelation, Re
 
 from charm import PolarisK8sCharm
 from core.constants import (
+    METASTORE_RELATION_NAME,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_BOOTSTRAP_COMMAND,
     POLARIS_CONTAINER_NAME,
     POLARIS_SERVICE_NAME,
+    S3_RELATION_NAME,
 )
 
 
@@ -71,7 +73,7 @@ def polaris_container(tmp_path: Path) -> Container:
 @pytest.fixture
 def metastore_relation() -> Relation:
     return Relation(
-        endpoint="metastore",
+        endpoint=METASTORE_RELATION_NAME,
         interface="postgresql_client",
         remote_app_name="metastore",
         local_app_data={
@@ -82,5 +84,24 @@ def metastore_relation() -> Relation:
             "endpoints": "postgresql-k8s-primary:5432",
             "username": "polaris",
             "password": "pwd",
+        },
+    )
+
+
+@pytest.fixture
+def s3_relation():
+    return Relation(
+        endpoint=S3_RELATION_NAME,
+        interface="s3",
+        remote_app_name="s3-integrator",
+        local_app_data={"bucket": "catalog"},
+        remote_app_data={
+            "access-key": "access-key",
+            "bucket": "my-bucket",
+            "data": '{"bucket": "catalog"}',
+            "endpoint": "https://s3.endpoint",
+            "path": "spark-events",
+            "secret-key": "secret-key",
+            "region": "us-east-1",
         },
     )
