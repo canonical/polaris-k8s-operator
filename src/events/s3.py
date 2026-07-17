@@ -89,9 +89,7 @@ class S3Events(BaseEventHandler, WithLogging, ManagerStatusProtocol):
             self._set_importing_ca_status()
             force_restart = self.tls_manager.import_ca_chain(self.context.s3.tls_ca_chain)
         else:
-            # Note: no need for force_restart, even if we previously had a custom ca.
-            # The configuration change alone will be enough to trigger a restart of the unit
-            self.tls_manager.reset()
+            force_restart = self.tls_manager.reset()
 
         self.polaris_manager.update(force_restart=force_restart)
 

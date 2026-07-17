@@ -57,5 +57,4 @@ class TLSManager(WithLogging):
     def reset(self) -> bool:
         """Remove object storage TLS files."""
         self.logger.info("Deleting object storage TLS files")
-        self.workload.reset_object_storage_tls()
-        return True
+        return self.workload.reset_object_storage_tls()

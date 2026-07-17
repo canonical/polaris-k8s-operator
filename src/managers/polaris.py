@@ -123,4 +123,4 @@ class PolarisManager(WithLogging):
         if not should_restart:
             self.logger.info("Workload restart skipped because the configuration did not change.")
             return
-        self.workload.restart()
+        self.workload.restart(environment=config.service_environment)

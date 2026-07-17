@@ -30,17 +30,17 @@ class PolarisWorkload(WithLogging):
         self.container = container
         self.fs = pathops.ContainerPath("/", container=container)
 
-    @property
-    def _base_polaris_layer(self) -> ops.pebble.LayerDict:
+    def _polaris_layer(self, environment: dict[str, str] | None = None) -> ops.pebble.LayerDict:
+        service_environment = {
+            "QUARKUS_CONFIG_LOCATIONS": f"file://{POLARIS_APPLICATION_PROPERTIES}"
+        } | (environment or {})
         layer: ops.pebble.LayerDict = {
             "services": {
                 POLARIS_SERVICE_NAME: {
                     "override": "merge",
                     "startup": "enabled",
                     "on-failure": "restart",
-                    "environment": {
-                        "QUARKUS_CONFIG_LOCATIONS": f"file://{POLARIS_APPLICATION_PROPERTIES}"
-                    },
+                    "environment": service_environment,
                 }
             }
         }
@@ -61,14 +61,18 @@ class PolarisWorkload(WithLogging):
             return False
         return service.is_running()
 
-    def restart(self) -> None:
+    def restart(self, environment: dict[str, str] | None = None) -> None:
         """Restart the workload service."""
         self.stop()
-        self.start()
+        self.start(environment=environment)
 
-    def start(self) -> None:
+    def start(self, environment: dict[str, str] | None = None) -> None:
         """Execute business logic for starting the workload."""
-        self.container.add_layer(POLARIS_SERVICE_NAME, self._base_polaris_layer, combine=True)
+        self.container.add_layer(
+            POLARIS_SERVICE_NAME,
+            self._polaris_layer(environment=environment),
+            combine=True,
+        )
         self.container.restart(POLARIS_SERVICE_NAME)
 
     def stop(self) -> None:
@@ -103,13 +107,16 @@ class PolarisWorkload(WithLogging):
         ).wait_output()
         self.container.exec(["chmod", "660", OBJECT_STORAGE_TRUSTSTORE]).wait_output()
 
-    def reset_object_storage_tls(self) -> None:
+    def reset_object_storage_tls(self) -> bool:
         """Remove object storage TLS files from the workload."""
+        removed = False
         for path in (OBJECT_STORAGE_TRUSTSTORE, OBJECT_STORAGE_CERTIFICATE):
             try:
                 (self.fs / path).unlink()
+                removed = True
             except FileNotFoundError:
                 continue
+        return removed
 
     def bootstrap_metastore(self, realm: str, bootstrap_credentials: str) -> None:
         """Bootstrap the Polaris metastore."""

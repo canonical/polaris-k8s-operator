@@ -46,6 +46,22 @@ class PolarisConfig(WithLogging):
         return conf
 
     @property
+    def service_environment(self) -> dict[str, str]:
+        """Return environment variables for the Polaris service."""
+        truststore_password = self.context.unit_server.truststore_password
+        if not self.context.s3.has_custom_ca or not truststore_password:
+            return {"JAVA_TOOL_OPTIONS": ""}
+
+        return {
+            "JAVA_TOOL_OPTIONS": " ".join(
+                (
+                    f"-Djavax.net.ssl.trustStore={OBJECT_STORAGE_TRUSTSTORE}",
+                    f"-Djavax.net.ssl.trustStorePassword={truststore_password}",
+                )
+            )
+        }
+
+    @property
     def _s3_conf(self) -> dict[str, str]:
         """Return S3-compatible object storage configurations."""
         s3 = self.context.s3
@@ -62,14 +78,6 @@ class PolarisConfig(WithLogging):
 
         if s3.uri_style:
             conf["s3.path-style-access"] = str(s3.uri_style == "path")
-        truststore_password = self.context.unit_server.truststore_password
-        if s3.has_custom_ca and truststore_password:
-            conf.update(
-                {
-                    "javax.net.ssl.trustStore": OBJECT_STORAGE_TRUSTSTORE,
-                    "javax.net.ssl.trustStorePassword": truststore_password,
-                }
-            )
 
         return conf
 
