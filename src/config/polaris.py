@@ -3,7 +3,7 @@
 
 """Polaris workload configuration."""
 
-from core.constants import ADMIN_USER, REALM, SYMMETRIC_KEY
+from core.constants import ADMIN_USER, OBJECT_STORAGE_TRUSTSTORE, REALM, SYMMETRIC_KEY
 from core.context import Context
 from core.logging import WithLogging
 
@@ -16,12 +16,12 @@ class PolarisConfig(WithLogging):
 
     @property
     def bootstrap_credentials(self) -> str:
-        """Return Polaris root principal credentials."""
+        """Polaris root principal credentials."""
         return f"{REALM},{ADMIN_USER},{self.context.cluster.admin_password}"
 
     @property
     def _base_conf(self) -> dict[str, str]:
-        """Return base Polaris configurations."""
+        """Base Polaris configurations."""
         conf = {
             "polaris.bootstrap.credentials": self.bootstrap_credentials,
             "polaris.readiness.ignore-severe-issues": "true",
@@ -45,9 +45,37 @@ class PolarisConfig(WithLogging):
 
         return conf
 
+    @property
+    def _s3_conf(self) -> dict[str, str]:
+        """Return S3-compatible object storage configurations."""
+        s3 = self.context.s3
+        if not s3.ready:
+            return {}
+
+        conf = {
+            'polaris.features."SUPPORTED_CATALOG_STORAGE_TYPES"': '["S3"]',
+            "polaris.storage.aws.access-key": s3.access_key,
+            "polaris.storage.aws.secret-key": s3.secret_key,
+            "s3.client.region": s3.region,
+            "s3.endpoint": s3.endpoint,
+        }
+
+        if s3.uri_style:
+            conf["s3.path-style-access"] = str(s3.uri_style == "path")
+        truststore_password = self.context.unit_server.truststore_password
+        if s3.has_custom_ca and truststore_password:
+            conf.update(
+                {
+                    "javax.net.ssl.trustStore": OBJECT_STORAGE_TRUSTSTORE,
+                    "javax.net.ssl.trustStorePassword": truststore_password,
+                }
+            )
+
+        return conf
+
     def to_dict(self) -> dict[str, str]:
         """Return the dict representation of the configuration file."""
-        return self._base_conf
+        return self._base_conf | self._s3_conf
 
     @property
     def contents(self) -> str:

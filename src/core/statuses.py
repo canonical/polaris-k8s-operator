@@ -83,3 +83,35 @@ class _MetastoreStatuses:
 
 
 MetastoreStatuses = _MetastoreStatuses()
+
+
+class _ObjectStorageStatuses:
+    """Status objects related to the object storage integration."""
+
+    OBJECT_STORAGE_RELATION_MISSING = StatusObject(
+        status="blocked",
+        message="Missing mandatory object storage relation",
+        action="Relate the charm to an object storage integrator",
+    )
+    OBJECT_STORAGE_NOT_READY = StatusObject(
+        status="waiting",
+        message="Waiting for object storage relation data",
+    )
+    IMPORTING_OBJECT_STORAGE_CA = StatusObject(
+        status="maintenance",
+        message="Importing object storage CA certificate",
+        running="blocking",
+    )
+
+    @staticmethod
+    def missing_parameters(fields: list[str]) -> StatusObject:
+        """Return a status for missing object storage relation data."""
+        fields_str = ", ".join(f"'{field}'" for field in fields)
+        return StatusObject(
+            status="waiting",
+            message=f"Missing object storage parameter(s): {fields_str}",
+            action=f"Set object storage parameter(s): {fields_str}",
+        )
+
+
+ObjectStorageStatuses = _ObjectStorageStatuses()

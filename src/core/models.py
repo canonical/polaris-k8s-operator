@@ -23,6 +23,8 @@ from core.constants import (
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 
+REQUIRED_S3_PARAMETERS = ["access-key", "secret-key", "bucket", "endpoint", "region"]
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +44,8 @@ class PeerAppModel(PeerModel):
 
 class PeerUnitModel(PeerModel):
     """Model for the peer unit data."""
+
+    truststore_password: str = Field(default="")
 
 
 class RelationState:
@@ -80,6 +84,71 @@ class RelationState:
             setattr(self.model, field.replace("-", "_"), None)
 
         self.data_interface.write_model(self.relation.id, self.model)
+
+
+class S3Storage:
+    """State collection for the S3-compatible object storage relation."""
+
+    def __init__(self, info: Mapping[str, Any]) -> None:
+        self.info = info
+
+    @property
+    def missing_fields(self) -> list[str]:
+        """Return missing required object storage fields."""
+        return [field for field in REQUIRED_S3_PARAMETERS if not self.info.get(field)]
+
+    @property
+    def ready(self) -> bool:
+        """Return whether the object storage relation has complete connection data."""
+        return not self.missing_fields
+
+    @property
+    def access_key(self) -> str:
+        """Return the object storage access key."""
+        return str(self.info.get("access-key") or "")
+
+    @property
+    def secret_key(self) -> str:
+        """Return the object storage secret key."""
+        return str(self.info.get("secret-key") or "")
+
+    @property
+    def bucket(self) -> str:
+        """Return the object storage bucket."""
+        return str(self.info.get("bucket") or "")
+
+    @property
+    def endpoint(self) -> str:
+        """Return the object storage endpoint."""
+        return str(self.info.get("endpoint") or "")
+
+    @property
+    def region(self) -> str:
+        """Return the object storage region."""
+        return str(self.info.get("region") or "")
+
+    @property
+    def path(self) -> str:
+        """Return the object storage path."""
+        return str(self.info.get("path") or "")
+
+    @property
+    def uri_style(self) -> str:
+        """Return the object storage URI style."""
+        return str(self.info.get("s3-uri-style") or "")
+
+    @property
+    def tls_ca_chain(self) -> list[str]:
+        """Return the object storage TLS CA chain."""
+        ca_chain: Any = self.info.get("tls-ca-chain") or []
+        if isinstance(ca_chain, str):
+            return [ca_chain]
+        return list(ca_chain)
+
+    @property
+    def has_custom_ca(self) -> bool:
+        """Return whether object storage provides a custom CA chain."""
+        return bool(self.tls_ca_chain)
 
 
 class Metastore:
@@ -171,6 +240,17 @@ class PolarisServer(RelationState):
     def unit_name(self) -> str:
         """The unit's name."""
         return self.unit.name
+
+    @property
+    def truststore_password(self) -> str:
+        """Retrieve the unit truststore password."""
+        if not self.model:
+            return ""
+        return self.model.truststore_password or ""
+
+    def set_truststore_password(self, password: str) -> None:
+        """Update the unit truststore password in peer unit databag."""
+        self.update({"truststore_password": password})
 
 
 @final

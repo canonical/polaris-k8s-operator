@@ -15,6 +15,8 @@ SECRET_REGEX = re.compile("secret:[a-z0-9]{20}")
 class PolarisCharmConfig(BaseConfigModel):
     """Charm structured configuration."""
 
+    storage_access_model: Annotated[str, Field(alias="storage-access-model")]
+    sts_endpoint: Annotated[str, Field(alias="sts-endpoint")]
     system_user: Annotated[str | None, Field(alias="system-user", pattern=SECRET_REGEX)] = None
 
     @model_serializer(mode="wrap")

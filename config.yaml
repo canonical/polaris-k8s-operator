@@ -2,9 +2,30 @@
 # See LICENSE file for licensing details.
 
 options:
+  storage-access-model:
+    type: string
+    description: |
+      Configure object storage access delegation.
+      One of "none", "vended". If "none", client are expected to possess valid credentials
+      to the object storage.
+
+    default: "none"
+
+  sts-endpoint:
+    type: string
+    description: |
+      Configure object storage access delegation endpoint. This configuration is needed to
+      enable credentials vending on S3-compliant object storages. This configuration option
+      is ignored if `storage-access-model` is set to `"none"` or if the charm is integrated
+      with a non-S3 object storage integrator.
+
+    default: ""
+
   system-user:
     type: secret
     description: |
-      Configure the system user 'charmed-operator' and its password. This needs to be a Juju secret URI pointing to a secret that contains the
-      following content: `charmed-operator: <password>`. If this config option is not provided, the charm will generate a random password for the
-      admin user.
+      Configure the system user 'charmed-operator' and its password. This needs to be a Juju
+      secret URI pointing to a secret that contains the following content:
+      `charmed-operator: <password>`.
+      If this config option is not provided, the charm will generate a random password for
+      the admin user.

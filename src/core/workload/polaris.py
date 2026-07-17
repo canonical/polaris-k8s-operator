@@ -9,9 +9,15 @@ from charmlibs import pathops
 from ops.model import Container
 
 from core.constants import (
+    KEYTOOL,
+    OBJECT_STORAGE_CA_ALIAS,
+    OBJECT_STORAGE_CERTIFICATE,
+    OBJECT_STORAGE_TRUSTSTORE,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_BOOTSTRAP_COMMAND,
+    POLARIS_GROUP,
     POLARIS_SERVICE_NAME,
+    POLARIS_USER,
     ROCK_METADATA,
 )
 from core.logging import WithLogging
@@ -69,6 +75,41 @@ class PolarisWorkload(WithLogging):
         """Execute business logic for stopping the workload."""
         if self.ready and POLARIS_SERVICE_NAME in self.container.get_services():
             self.container.stop(POLARIS_SERVICE_NAME)
+
+    def import_ca(
+        self, certificate: str, password: str, alias: str = OBJECT_STORAGE_CA_ALIAS
+    ) -> None:
+        """Import a CA certificate into the object storage truststore."""
+        pathops.ensure_contents(self.fs / OBJECT_STORAGE_CERTIFICATE, certificate)
+        process = self.container.exec(
+            [
+                KEYTOOL,
+                "-import",
+                "-v",
+                "-alias",
+                alias,
+                "-file",
+                OBJECT_STORAGE_CERTIFICATE,
+                "-keystore",
+                OBJECT_STORAGE_TRUSTSTORE,
+                "-storepass",
+                password,
+                "-noprompt",
+            ]
+        )
+        process.wait_output()
+        self.container.exec(
+            ["chown", "-R", f"{POLARIS_USER}:{POLARIS_GROUP}", OBJECT_STORAGE_TRUSTSTORE]
+        ).wait_output()
+        self.container.exec(["chmod", "660", OBJECT_STORAGE_TRUSTSTORE]).wait_output()
+
+    def reset_object_storage_tls(self) -> None:
+        """Remove object storage TLS files from the workload."""
+        for path in (OBJECT_STORAGE_TRUSTSTORE, OBJECT_STORAGE_CERTIFICATE):
+            try:
+                (self.fs / path).unlink()
+            except FileNotFoundError:
+                continue
 
     def bootstrap_metastore(self, realm: str, bootstrap_credentials: str) -> None:
         """Bootstrap the Polaris metastore."""

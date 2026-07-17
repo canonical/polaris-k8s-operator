@@ -16,12 +16,25 @@ from dpcharmlibs.interfaces import (
     OpsPeerRepositoryInterface,
     OpsPeerUnitRepositoryInterface,
 )
+from object_storage import S3Requirer
 from pydantic import ValidationError
 
 from config.charm import PolarisCharmConfig
-from core.constants import METASTORE_RELATION_NAME, PEERS_RELATION_NAME, STATUS_RELATION_NAME
+from core.constants import (
+    METASTORE_RELATION_NAME,
+    PEERS_RELATION_NAME,
+    S3_RELATION_NAME,
+    STATUS_RELATION_NAME,
+)
 from core.logging import WithLogging
-from core.models import Metastore, PeerAppModel, PeerUnitModel, PolarisCluster, PolarisServer
+from core.models import (
+    Metastore,
+    PeerAppModel,
+    PeerUnitModel,
+    PolarisCluster,
+    PolarisServer,
+    S3Storage,
+)
 
 if TYPE_CHECKING:
     from charm import PolarisK8sCharm
@@ -29,6 +42,9 @@ if TYPE_CHECKING:
 
 class Context(ops.Object, WithLogging, StatusesStateProtocol):
     """Properties and relations of the charm."""
+
+    # This element is injected by the s3 event handler to avoid duplicated side-effects
+    _s3_requirer: S3Requirer
 
     def __init__(self, charm: PolarisK8sCharm) -> None:
         super().__init__(charm, "charm_context")
@@ -70,11 +86,6 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         return self.model.get_relation(PEERS_RELATION_NAME)
 
     @property
-    def metastore_relation(self) -> ops.model.Relation | None:
-        """Get the metastore relation."""
-        return self.model.get_relation(METASTORE_RELATION_NAME)
-
-    @property
     def peer_units_data_interfaces(
         self,
     ) -> dict[ops.model.Unit, OpsOtherPeerUnitRepositoryInterface[PeerUnitModel]]:
@@ -93,9 +104,26 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         }
 
     @property
+    def metastore_relation(self) -> ops.model.Relation | None:
+        """Get the metastore relation."""
+        return self.model.get_relation(METASTORE_RELATION_NAME)
+
+    @property
     def metastore(self) -> Metastore:
         """Get the metastore relation state."""
         return Metastore(relation=self.metastore_relation, model=self.charm.model)
+
+    @property
+    def s3_relation(self) -> ops.model.Relation | None:
+        """Get the s3 relation."""
+        return self.model.get_relation(S3_RELATION_NAME)
+
+    @property
+    def s3(self) -> S3Storage:
+        """Get the s3 relation state."""
+        if not hasattr(self, "_s3_requirer"):
+            return S3Storage({})
+        return S3Storage(self._s3_requirer.get_storage_connection_info(self.s3_relation))
 
     @property
     def unit_server(self) -> PolarisServer:

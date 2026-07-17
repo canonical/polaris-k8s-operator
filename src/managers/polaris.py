@@ -78,6 +78,7 @@ class PolarisManager(WithLogging):
 
     def update(
         self,
+        force_restart: bool = False,
     ) -> None:
         """Update Polaris service and restart it."""
         if not self.context.cluster.ready:
@@ -88,10 +89,14 @@ class PolarisManager(WithLogging):
             self.logger.info("Skipping workload restart, metastore is not ready")
             return
 
+        if not self.context.s3.ready:
+            self.logger.info("Skipping workload restart, object storage is not ready")
+            return
+
         self.logger.info("Restarting Polaris workload")
 
         config = PolarisConfig(context=self.context)
-        should_restart = any(
+        config_changed = any(
             (
                 pathops.ensure_contents(
                     self.workload.fs / POLARIS_APPLICATION_PROPERTIES,
@@ -103,6 +108,7 @@ class PolarisManager(WithLogging):
                 ),
             )
         )
+        should_restart = force_restart or config_changed
 
         if not self.context.cluster.metastore_bootstrapped:
             if not self.charm.unit.is_leader():
