@@ -10,7 +10,7 @@ import yaml
 
 from core.constants import ADMIN_USER
 
-from .helpers import polaris_management_api
+from .helpers import S3Info, polaris_management_api, set_s3_credentials
 from .supporting_charms import SingleVariantCharmVersion
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,28 @@ def test_deploy(juju: jubilant.Juju, polaris_charm: Path) -> None:
     juju.deploy(polaris_charm, app="polaris-k8s", resources=resources)
     logger.info("Waiting for polaris to be idle...")
     juju.wait(jubilant.all_blocked, delay=5)
+
+
+def test_deploy_s3_integrator(
+    juju: jubilant.Juju, s3: SingleVariantCharmVersion, s3_credentials: S3Info
+) -> None:
+    """Test deploying the s3-integrator charm and configuring it."""
+    juju.deploy(**s3.to_dict())
+
+    endpoint_url = s3_credentials["endpoint"]
+    access_key = s3_credentials["access_key"]
+    secret_key = s3_credentials["secret_key"]
+    bucket_name = s3_credentials["bucket"]
+    path = s3_credentials["path"]
+    region = s3_credentials["region"]
+    juju.config(
+        s3.app,
+        {"bucket": bucket_name, "path": path, "endpoint": endpoint_url, "region": region},
+    )
+    set_s3_credentials(juju, s3.app, access_key, secret_key)
+    logger.info("Waiting for s3-integrator to be idle...")
+    juju.wait(lambda status: jubilant.all_active(status, s3.app), delay=5)
+    juju.integrate(APP_NAME, s3.app)
 
 
 def test_integrate_metastore(juju: jubilant.Juju, metastore: SingleVariantCharmVersion) -> None:

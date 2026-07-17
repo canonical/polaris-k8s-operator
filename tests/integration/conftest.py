@@ -4,19 +4,25 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Generator
 from pathlib import Path
 from platform import machine
 
+import boto3.session
 import jubilant
 import pytest
+from botocore.client import Config
 from dotenv import load_dotenv
 
-from .supporting_charms import Metastore, SingleVariantCharmVersion
+from .helpers import S3Info
+from .supporting_charms import S3, Metastore, SingleVariantCharmVersion
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 logging.getLogger("jubilant.wait").setLevel(logging.WARNING)
+BUCKET_NAME = "test-bucket"
+PATH_NAME = "catalogs"
 
 
 @pytest.fixture(scope="module")
@@ -90,3 +96,57 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 @pytest.fixture(scope="module")
 def metastore(platform: str) -> SingleVariantCharmVersion:
     return Metastore[platform]
+
+
+@pytest.fixture(scope="module")
+def s3(platform: str) -> SingleVariantCharmVersion:
+    return S3[platform]
+
+
+@pytest.fixture(scope="module")
+def s3_credentials(request: pytest.FixtureRequest) -> Generator[S3Info, None, None]:
+    keep_models = bool(request.config.getoption("--keep-models"))
+    access_key = os.environ["S3_ACCESS_KEY"]
+    secret_key = os.environ["S3_SECRET_KEY"]
+    endpoint_url = os.environ["S3_SERVER_URL"]
+
+    session = boto3.session.Session(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    s3 = session.resource(
+        service_name="s3",
+        endpoint_url=endpoint_url,
+        verify=False,
+        region_name="us-east-1",
+        config=Config(
+            connect_timeout=60,
+            retries={"max_attempts": 4},
+            request_checksum_calculation="when_supported",
+            response_checksum_validation="when_supported",
+        ),
+    )
+    test_bucket = s3.Bucket(BUCKET_NAME)
+
+    # Delete test bucket if it exists
+    if test_bucket in s3.buckets.all():
+        logger.info(f"The bucket {BUCKET_NAME} already exists. Deleting it...")
+        for obj in test_bucket.objects.all():
+            # We need to iterate over keys because delete_objects (plural) has mandatory checksum
+            obj.delete()
+        test_bucket.delete()
+
+    yield {
+        "endpoint": endpoint_url,
+        "access_key": access_key,
+        "secret_key": secret_key,
+        "bucket": BUCKET_NAME,
+        "path": PATH_NAME,
+        "ca_bundle_path": os.environ.get("S3_CA_BUNDLE_PATH", ""),
+        "region": "us-east-1",
+    }
+
+    if not keep_models:
+        logger.info("Tearing down test bucket...")
+        for obj in test_bucket.objects.all():
+            # We need to iterate over keys because delete_objects (plural) has mandatory checksum
+            obj.delete()
+
+        test_bucket.delete()

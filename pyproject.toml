@@ -25,6 +25,7 @@ lint = [
   "codespell>=2.4.0",
   "ruff>=0.15.0",
   "zuban>=0.9.0",
+  "types-boto3[essentials] (>=1.43.50,<2.0.0)",
 ]
 unit = [
   "coverage[toml]>=7.0.0",
@@ -35,6 +36,7 @@ integration = [
   "jubilant>=1.8.0",
   "pytest>=9.0.0",
   "python-dotenv (>=1.2.2,<2.0.0)",
+  "boto3 (>=1.43.50,<2.0.0)",
 ]
 
 [tool.coverage.run]
@@ -72,7 +74,7 @@ extend-exclude = ["__pycache__", "*.egg_info"]
 max-complexity = 10
 
 [tool.codespell]
-skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
+skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage,poetry.lock"
 
 [tool.mypy]
 exclude = [
