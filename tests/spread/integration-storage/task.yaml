@@ -4,7 +4,11 @@
 summary: Run integration-storage tests
 
 prepare: |
-  # Generate TLS certificates for MicroCeph RGW
+  # The setup here consists in
+  # 1. Generating self-signed certs for microceph and enable RGW
+  # 2. Enabling STS support so that we can use vended credentials
+  # 3. Creating the appropriate role so that use STS
+
   export IP=$(ip -4 -j route get 2.2.2.2 | jq -r '.[] | .prefsrc')
   mkdir -p /tmp/certs
   openssl genrsa -out /tmp/certs/ca.key 2048
@@ -21,7 +25,6 @@ prepare: |
     -CAcreateserial -out /tmp/certs/server.crt \
     -days 365 -extfile /tmp/certs/extfile.cnf
 
-  # Bootstrap MicroCeph with TLS-enabled RGW
   sudo microceph cluster bootstrap
   sudo microceph disk add loop,1G,3
   SERVER_CRT_B64=$(base64 -w0 /tmp/certs/server.crt)
@@ -30,24 +33,23 @@ prepare: |
     --ssl-certificate "$SERVER_CRT_B64" \
     --ssl-private-key "$SERVER_KEY_B64"
 
-  # Enable RGW STS support for Polaris credential vending
   sudo microceph.ceph config set global rgw_s3_auth_use_sts true
   sudo microceph.ceph config set global rgw_sts_key "1234567890abcdef"
   sudo snap restart microceph
 
-  for i in $(seq 1 30); do
+  for i in $(seq 1 10); do
     if curl -sk "https://$IP/" > /dev/null 2>&1; then
       echo "RGW is ready"
       break
     fi
-    echo "Waiting for RGW ($i/30)..."
+    echo "Waiting for RGW..."
     sleep 5
   done
+
   sudo microceph.radosgw-admin user create \
     --uid test --display-name test \
     --access-key=foo --secret-key=bar
 
-  # Create an RGW STS role for Polaris credential vending
   sudo microceph.radosgw-admin caps add --uid="test" --caps="roles=*"
   cat > /tmp/assume-role-policy.json <<'EOF'
   {
@@ -85,7 +87,6 @@ prepare: |
     --policy-name polaris-test-policy \
     --policy-document file:///tmp/role-policy.json
 
-  # Write S3 credentials consumed by load_dotenv() in conftest.py
   {
     echo "S3_SERVER_URL=https://$IP"
     echo "S3_ACCESS_KEY=foo"
