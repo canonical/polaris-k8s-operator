@@ -56,7 +56,7 @@ jobs:
               _, runner, task = job.split(":")
               task_name = task.removeprefix("tests/spread/")
 
-              if "arm64" in runner:
+              if "arm" in runner:
                   architecture = "arm64"
               else:
                   architecture = "amd64"

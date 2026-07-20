@@ -34,7 +34,7 @@ host:
     yq:
       channel: latest/stable
     microceph:
-      channel: tentacle/stable
+      channel: squid/stable
     kubectl:
       channel: latest/stable
     just:
