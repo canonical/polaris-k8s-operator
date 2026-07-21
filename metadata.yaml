@@ -52,6 +52,15 @@ requires:
   s3-credentials:
     interface: s3
     limit: 1
-    optional: false  # TODO(object-storage): mark as optional once we support others
+    optional: false # TODO(object-storage): mark as optional once we support others
 
-provides: {}
+  logging:
+    interface: loki_push_api
+    limit: 1
+    optional: true
+
+provides:
+  metrics-endpoint:
+    interface: prometheus_scrape
+    limit: 1
+    optional: true

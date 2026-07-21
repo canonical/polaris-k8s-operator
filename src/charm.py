@@ -8,15 +8,18 @@ import logging
 import warnings
 from typing import cast
 
-import ops
-from data_platform_helpers.advanced_statuses.handler import StatusHandler
 from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 from protocols import CharmWithStatus
 
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
-from core.constants import POLARIS_CONTAINER_NAME
+import ops
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from data_platform_helpers.advanced_statuses.handler import StatusHandler
+
+from core.constants import MONITORING_PORT, POLARIS_CONTAINER_NAME
 from core.context import Context
 from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreEvents
@@ -51,6 +54,22 @@ class PolarisK8sCharm(ops.CharmBase):
             self.polaris_events,
             self.metastore_events,
             self.s3_events,
+        )
+
+        self.log_forwarder = LogForwarder(
+            self,
+            relation_name="logging",  # optional, defaults to "logging"
+        )
+
+        self.metrics_endpoint = MetricsEndpointProvider(
+            self,
+            jobs=[
+                {
+                    "metrics_path": "/q/metrics",
+                    "static_configs": [{"targets": [f"*:{MONITORING_PORT}"]}],
+                }
+            ],
+            # alert_rules_path=METRICS_RULES_DIR,
         )
 
 
