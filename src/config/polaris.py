@@ -15,16 +15,33 @@ class PolarisConfig(WithLogging):
         self.context = context
 
     @property
-    def _base_conf(self) -> dict[str, str]:  # noqa: E501
+    def bootstrap_credentials(self) -> str:
+        """Return Polaris root principal credentials."""
+        return f"{REALM},{ADMIN_USER},{self.context.cluster.admin_password}"
+
+    @property
+    def _base_conf(self) -> dict[str, str]:
         """Return base Polaris configurations."""
         conf = {
-            "polaris.bootstrap.credentials": f"{REALM},{ADMIN_USER},{self.context.cluster.admin_password}",  # noqa: E501
+            "polaris.bootstrap.credentials": self.bootstrap_credentials,
             "polaris.readiness.ignore-severe-issues": "true",
             "polaris.realm-context.realms": "POLARIS",
             "polaris.realm-context.require-header": "true",
             "polaris.authentication.token-broker.type": "symmetric-key",
             "polaris.authentication.token-broker.symmetric-key.file": SYMMETRIC_KEY,
         }
+
+        metastore = self.context.metastore
+        if metastore.ready:
+            conf.update(
+                {
+                    "polaris.persistence.type": "relational-jdbc",
+                    "quarkus.datasource.db-kind": "postgresql",
+                    "quarkus.datasource.jdbc.url": metastore.jdbc_url,
+                    "quarkus.datasource.username": metastore.username,
+                    "quarkus.datasource.password": metastore.password,
+                }
+            )
 
         return conf
 

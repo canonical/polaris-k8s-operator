@@ -4,6 +4,7 @@
 """Collection of state objects for the Polaris relations, apps and units."""
 
 import logging
+from collections.abc import Mapping
 from typing import Annotated, Any, final
 
 import ops
@@ -16,7 +17,11 @@ from dpcharmlibs.interfaces import (
 )
 from pydantic import Field
 
-from core.constants import ADMIN_USER, SYSTEM_USER_SECRET_LABEL_SUFFIX
+from core.constants import (
+    ADMIN_USER,
+    POLARIS_METASTORE_DATABASE_NAME,
+    SYSTEM_USER_SECRET_LABEL_SUFFIX,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +36,7 @@ class PeerAppModel(PeerModel):
 
     charmed_operator_password: InternalUserSecret = Field(default="")
     shared_key: str = Field(default="")
+    metastore_bootstrapped: bool = Field(default=False)
     epoch: int = Field(default=1)
 
 
@@ -74,6 +80,69 @@ class RelationState:
             setattr(self.model, field.replace("-", "_"), None)
 
         self.data_interface.write_model(self.relation.id, self.model)
+
+
+class Metastore:
+    """State collection for the metastore relation."""
+
+    def __init__(self, relation: ops.model.Relation | None, model: ops.model.Model) -> None:
+        self._relation = relation
+        self._model = model
+
+    @property
+    def relation_data(self) -> Mapping[str, str]:
+        """Return the metastore provider relation data."""
+        if not self._relation or not self._relation.app:
+            return {}
+        return self._relation.data[self._relation.app]
+
+    def _user_secret_content(self) -> dict[str, str]:
+        """Return the metastore user secret content."""
+        if not (secret_id := self.relation_data.get("secret-user")):
+            return {}
+
+        try:
+            return self._model.get_secret(id=secret_id).get_content(refresh=True)
+        except (ops.ModelError, ops.SecretNotFoundError):
+            logger.warning("Could not access metastore user secret")
+            return {}
+
+    @property
+    def database(self) -> str:
+        """Return the metastore database name."""
+        return self.relation_data.get("database") or POLARIS_METASTORE_DATABASE_NAME
+
+    @property
+    def endpoint(self) -> str:
+        """Return the first metastore endpoint."""
+        endpoints = self.relation_data.get("endpoints") or ""
+        return endpoints.split(",")[0]
+
+    @property
+    def username(self) -> str:
+        """Return the metastore username."""
+        return (
+            self._user_secret_content().get("username") or self.relation_data.get("username") or ""
+        )
+
+    @property
+    def password(self) -> str:
+        """Return the metastore password."""
+        return (
+            self._user_secret_content().get("password") or self.relation_data.get("password") or ""
+        )
+
+    @property
+    def jdbc_url(self) -> str:
+        """Return the JDBC URL for the metastore."""
+        if not self.endpoint or not self.database:
+            return ""
+        return f"jdbc:postgresql://{self.endpoint}/{self.database}"
+
+    @property
+    def ready(self) -> bool:
+        """Return whether the metastore relation has complete connection data."""
+        return bool(self.endpoint and self.username and self.password and self.database)
 
 
 @final
@@ -153,6 +222,17 @@ class PolarisCluster(RelationState):
         if not self.model:
             return -1
         return self.model.epoch or -1
+
+    @property
+    def metastore_bootstrapped(self) -> bool:
+        """Return whether the metastore has been bootstrapped."""
+        if not self.model:
+            return False
+        return self.model.metastore_bootstrapped
+
+    def set_metastore_bootstrapped(self, bootstrapped: bool) -> None:
+        """Update the metastore bootstrap state in peer app databag."""
+        self.update({"metastore_bootstrapped": bootstrapped})
 
     def increment_epoch(self) -> None:
         """Increment cluster state epoch."""

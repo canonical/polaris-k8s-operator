@@ -1,12 +1,13 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 import ops
 import yaml
-from ops.testing import Container, Context, PeerRelation, Secret, State
+from ops.testing import Container, Context, PeerRelation, Relation, Secret, State
 
 from core.constants import (
     ADMIN_USER,
@@ -17,7 +18,7 @@ from core.constants import (
     SYMMETRIC_KEY,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
-from core.statuses import CharmStatuses
+from core.statuses import CharmStatuses, MetastoreStatuses
 from events.polaris import SYSTEM_USER_SECRET_LABEL
 
 CONFIG = yaml.safe_load(Path("./config.yaml").read_text())
@@ -39,7 +40,7 @@ def _bootstrap_credentials_line(config: str) -> str:
     raise AssertionError("polaris.bootstrap.credentials not found")
 
 
-def test_start_polaris(polaris_context: Context) -> None:
+def test_start_polaris_missing_metastore_relation(polaris_context: Context) -> None:
     # Given
     state = State(
         config={},
@@ -50,20 +51,62 @@ def test_start_polaris(polaris_context: Context) -> None:
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert out.unit_status.message == CharmStatuses.WAITING_PEBBLE.message
+    # Multiple statuses here as we don't have the container available
+    assert MetastoreStatuses.METASTORE_RELATION_MISSING.message in out.unit_status.message
+
+
+def test_start_polaris_with_metastore(
+    polaris_context: Context, metastore_relation: Relation
+) -> None:
+    # Given
+    state = State(
+        config={},
+        containers=[Container(name=POLARIS_CONTAINER_NAME, can_connect=False)],
+        relations=[metastore_relation],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.install(), state)
+
+    # Then
+    # Multiple statuses here as we don't have the container available
+    assert CharmStatuses.WAITING_PEBBLE.message in out.unit_status.message
+
+
+def test_polaris_missing_metastore_data(
+    polaris_container: Container,
+    polaris_context: Context,
+    metastore_relation: Relation,
+) -> None:
+    # Given
+    metastore_relation = replace(metastore_relation, remote_app_data={})
+    state = State(
+        config={},
+        containers=[polaris_container],
+        relations=[metastore_relation],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.install(), state)
+
+    # Then
+    # Note: we actually would have multiple statuses here, as not having the metastore
+    # would mean that the service is not running.
+    assert MetastoreStatuses.METASTORE_NOT_READY.message == out.unit_status.message
 
 
 def test_bare_leader_deployment_writes_config_with_random_password(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
     tmp_path: Path,
 ) -> None:
     # Given
     state = State(
         config={},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
     )
 
@@ -92,6 +135,7 @@ def test_config_changed_uses_configured_system_user_secret(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
     tmp_path: Path,
 ) -> None:
     # Given
@@ -102,7 +146,7 @@ def test_config_changed_uses_configured_system_user_secret(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
         secrets=[user_secret],
     )
@@ -124,13 +168,14 @@ def test_config_changed_switches_from_random_password_to_user_secret(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
     tmp_path: Path,
 ) -> None:
     # Given
     initial_state = State(
         config={},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
     )
     initial_out = polaris_context.run(
@@ -153,9 +198,14 @@ def test_config_changed_switches_from_random_password_to_user_secret(
     )
 
     # When
-    out = polaris_context.run(polaris_context.on.config_changed(), configured_state)
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials"
+    ) as patched_creds_rotation:
+        out = polaris_context.run(polaris_context.on.config_changed(), configured_state)
 
-    # Then
+        # Then
+        assert patched_creds_rotation.called
+
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
     assert initial_password
@@ -170,9 +220,13 @@ def test_secret_changed_updates_leader_config_and_epoch(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
     tmp_path: Path,
 ) -> None:
     # Given
+    polaris_peers_relation = replace(
+        polaris_peers_relation, local_app_data={"metastore_bootstrapped": "true"}
+    )
     user_secret = Secret(
         {ADMIN_USER: USER_PASSWORD},
         latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
@@ -182,15 +236,20 @@ def test_secret_changed_updates_leader_config_and_epoch(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
         secrets=[user_secret],
     )
 
     # When
-    out = polaris_context.run(polaris_context.on.secret_changed(user_secret), state)
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials"
+    ) as patched_creds_rotation:
+        out = polaris_context.run(polaris_context.on.secret_changed(user_secret), state)
 
-    # Then
+        # Then
+        assert patched_creds_rotation.called
+
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
     assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
@@ -203,12 +262,13 @@ def test_configured_system_user_secret_not_found_sets_blocked_status(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
 ) -> None:
     # Given
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
     )
 
@@ -223,12 +283,13 @@ def test_configured_system_user_secret_without_grant_sets_blocked_status(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
 ) -> None:
     # Given
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
     )
 
@@ -251,6 +312,7 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
     polaris_container: Container,
     polaris_context: Context,
     polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
 ) -> None:
     # Given
     user_secret = Secret(
@@ -260,7 +322,7 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
-        relations=[polaris_peers_relation],
+        relations=[polaris_peers_relation, metastore_relation],
         containers=[polaris_container],
         secrets=[user_secret],
     )
@@ -275,6 +337,7 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
 def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed(
     polaris_container: Container,
     polaris_context: Context,
+    metastore_relation: Relation,
     tmp_path: Path,
 ) -> None:
     # Given
@@ -295,7 +358,7 @@ def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed
     state = State(
         config={},
         leader=False,
-        relations=[relation],
+        relations=[relation, metastore_relation],
         containers=[polaris_container],
         secrets=[internal_secret],
     )

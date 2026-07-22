@@ -19,9 +19,9 @@ from dpcharmlibs.interfaces import (
 from pydantic import ValidationError
 
 from config.charm import PolarisCharmConfig
-from core.constants import PEERS_RELATION_NAME, STATUS_RELATION_NAME
+from core.constants import METASTORE_RELATION_NAME, PEERS_RELATION_NAME, STATUS_RELATION_NAME
 from core.logging import WithLogging
-from core.models import PeerAppModel, PeerUnitModel, PolarisCluster, PolarisServer
+from core.models import Metastore, PeerAppModel, PeerUnitModel, PolarisCluster, PolarisServer
 
 if TYPE_CHECKING:
     from charm import PolarisK8sCharm
@@ -70,6 +70,11 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         return self.model.get_relation(PEERS_RELATION_NAME)
 
     @property
+    def metastore_relation(self) -> ops.model.Relation | None:
+        """Get the metastore relation."""
+        return self.model.get_relation(METASTORE_RELATION_NAME)
+
+    @property
     def peer_units_data_interfaces(
         self,
     ) -> dict[ops.model.Unit, OpsOtherPeerUnitRepositoryInterface[PeerUnitModel]]:
@@ -86,6 +91,11 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
             )
             for unit in self.peer_relation.units
         }
+
+    @property
+    def metastore(self) -> Metastore:
+        """Get the metastore relation state."""
+        return Metastore(relation=self.metastore_relation, model=self.charm.model)
 
     @property
     def unit_server(self) -> PolarisServer:

@@ -10,6 +10,7 @@ from ops.model import Container
 
 from core.constants import (
     POLARIS_APPLICATION_PROPERTIES,
+    POLARIS_BOOTSTRAP_COMMAND,
     POLARIS_SERVICE_NAME,
     ROCK_METADATA,
 )
@@ -68,6 +69,29 @@ class PolarisWorkload(WithLogging):
         """Execute business logic for stopping the workload."""
         if self.ready and POLARIS_SERVICE_NAME in self.container.get_services():
             self.container.stop(POLARIS_SERVICE_NAME)
+
+    def bootstrap_metastore(self, realm: str, bootstrap_credentials: str) -> None:
+        """Bootstrap the Polaris metastore."""
+        try:
+            process = self.container.exec(
+                [*POLARIS_BOOTSTRAP_COMMAND, f"-r={realm}", f"-c={bootstrap_credentials}"],
+                environment={
+                    "QUARKUS_CONFIG_LOCATIONS": f"file://{POLARIS_APPLICATION_PROPERTIES}",
+                },
+            )
+            stdout, stderr = process.wait_output()
+        except ops.pebble.ExecError as e:
+            self.logger.error(
+                "Failed to bootstrap Polaris metastore: stdout=%s stderr=%s",
+                e.stdout,
+                e.stderr,
+            )
+            raise
+
+        if stdout:
+            self.logger.debug("Metastore bootstrap output: %s", stdout)
+        if stderr:
+            self.logger.debug("Metastore bootstrap error output: %s", stderr)
 
     def get_workload_version(self) -> str:
         """Get Polaris version from the workload."""

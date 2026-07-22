@@ -43,6 +43,10 @@ peers:
   status-peers:
     interface: status_peers
 
-requires: {}
+requires:
+  metastore:
+    interface: postgresql_client
+    limit: 1
+    optional: false
 
 provides: {}
