@@ -42,6 +42,8 @@ integration = [
   "python-dotenv (>=1.2.2,<2.0.0)",
   "boto3 (>=1.43.3,<1.43.47)",
   "pyiceberg[pyarrow,s3fs] (>=0.10.0,<1.0.0)",
+  "tenacity (>=9.1.4,<10.0.0)",
+  "httpx2 (>=2.7.0,<3.0.0)",
 ]
 
 [tool.coverage.run]
