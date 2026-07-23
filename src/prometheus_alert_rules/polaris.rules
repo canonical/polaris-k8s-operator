@@ -1,0 +1,43 @@
+groups:
+  - name: polaris.alerts
+    rules:
+      - alert: Polaris Missing
+        expr: up == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus target missing (unit {{ $labels.juju_unit }})"
+          description: "Apache Polaris target has disappeared or is unreachable."
+
+      - alert: Polaris Instance Restarting
+        expr: resets(process_uptime_seconds[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Polaris instance restarted (unit {{ $labels.juju_unit }})"
+          description: "Polaris process uptime reset, indicating a container crash or pod restart."
+
+      - alert: JvmMemory Filling Up
+        expr: |
+          (
+            sum by (juju_unit) (jvm_memory_used_bytes{area="heap"})
+            /
+            sum by (juju_unit) (jvm_memory_max_bytes{area="heap"} > 0)
+          ) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM memory filling up (unit {{ $labels.juju_unit }})"
+          description: "JVM Heap memory usage is above 85%."
+
+      - alert: Polaris Excessive GC Pauses
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) > 0.3
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM Garbage Collection pause time (unit {{ $labels.juju_unit }})"
+          description: "Polaris spent > 30% of its execution time in GC pauses over the last 5 minutes."

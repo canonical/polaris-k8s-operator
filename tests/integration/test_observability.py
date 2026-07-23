@@ -26,6 +26,7 @@ APP_NAME = METADATA["name"]
 COS_LITE_TF = Path.cwd() / "tests/integration/resources/cos-lite/main.tf"
 LOKI = "loki"
 PROMETHEUS = "prometheus"
+GRAFANA = "grafana"
 
 
 class TfDirManager:
@@ -68,6 +69,13 @@ def tf_manager(
     base = tmp_path_factory.mktemp("terraform_base")
     tf = TfDirManager(base)
     yield tf
+
+
+def get_grafana_access(juju: jubilant.Juju) -> tuple[str, str]:
+    """Get Grafana URL and password."""
+    task = juju.run("grafana/0", "get-admin-password")
+    assert task.return_code == 0
+    return task.results["url"], task.results["admin-password"]
 
 
 def test_deploy(
@@ -121,6 +129,7 @@ def test_integrate_polaris_cos(juju: jubilant.Juju) -> None:
     """Integrate Polaris with COS lite."""
     juju.integrate(APP_NAME, "loki")
     juju.integrate(APP_NAME, "prometheus")
+    juju.integrate(APP_NAME, "grafana")
     logger.info("Waiting for all applications to be all idle...")
     status = juju.wait(jubilant.all_agents_idle, delay=15)
 
@@ -161,3 +170,15 @@ def test_integrate_polaris_cos(juju: jubilant.Juju) -> None:
 
             metric_value = results[0].get("value", [])[1]
             assert metric_value == "1"
+
+    logger.info("Checking dashboard in grafana")
+    grafana_address, pw = get_grafana_access(juju)
+    for attempt in Retrying(stop=stop_after_attempt(10), wait=wait_fixed(10), reraise=True):
+        with attempt:
+            response = httpx2.get(
+                f"{grafana_address}/api/search?query=&starred=false", auth=("admin", pw)
+            )
+            response.raise_for_status()
+
+            payload = response.json()
+            assert any(board["title"] == "Apache Polaris Metrics" for board in payload)

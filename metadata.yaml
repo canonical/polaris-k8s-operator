@@ -64,3 +64,8 @@ provides:
     interface: prometheus_scrape
     limit: 1
     optional: true
+
+  grafana-dashboard:
+    interface: grafana_dashboard
+    limit: 1
+    optional: true

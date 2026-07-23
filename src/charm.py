@@ -15,11 +15,15 @@ from protocols import CharmWithStatus
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
 import ops
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from data_platform_helpers.advanced_statuses.handler import StatusHandler
 
-from core.constants import MONITORING_PORT, POLARIS_CONTAINER_NAME
+from core.constants import (
+    MONITORING_PORT,
+    POLARIS_CONTAINER_NAME,
+)
 from core.context import Context
 from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreEvents
@@ -56,11 +60,7 @@ class PolarisK8sCharm(ops.CharmBase):
             self.s3_events,
         )
 
-        self.log_forwarder = LogForwarder(
-            self,
-            relation_name="logging",  # optional, defaults to "logging"
-        )
-
+        self.log_forwarder = LogForwarder(self)
         self.metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -69,8 +69,8 @@ class PolarisK8sCharm(ops.CharmBase):
                     "static_configs": [{"targets": [f"*:{MONITORING_PORT}"]}],
                 }
             ],
-            # alert_rules_path=METRICS_RULES_DIR,
         )
+        self.grafana_dashboards = GrafanaDashboardProvider(self)
 
 
 if __name__ == "__main__":  # pragma: nocover
