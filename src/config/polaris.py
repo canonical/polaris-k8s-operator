@@ -68,18 +68,11 @@ class PolarisConfig(WithLogging):
         if not s3.ready:
             return {}
 
-        conf = {
+        return {
             'polaris.features."SUPPORTED_CATALOG_STORAGE_TYPES"': '["S3"]',
             "polaris.storage.aws.access-key": s3.access_key,
             "polaris.storage.aws.secret-key": s3.secret_key,
-            "s3.client.region": s3.region,
-            "s3.endpoint": s3.endpoint,
         }
-
-        if s3.uri_style:
-            conf["s3.path-style-access"] = str(s3.uri_style == "path")
-
-        return conf
 
     def to_dict(self) -> dict[str, str]:
         """Return the dict representation of the configuration file."""
