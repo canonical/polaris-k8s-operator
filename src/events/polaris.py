@@ -105,7 +105,9 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.context = context
         self.polaris_workload = polaris_workload
 
-        self.polaris_manager = PolarisManager(self.charm, self.context, self.polaris_workload)
+        self.polaris_manager = PolarisManager(
+            self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
+        )
         # TODO(console): Add console manager
 
         self.framework.observe(self.charm.on.start, self._on_start)

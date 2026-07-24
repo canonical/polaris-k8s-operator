@@ -10,7 +10,6 @@ from apache_polaris.cli.constants import DEFAULT_HEADER
 from apache_polaris.sdk.management.api import PolarisDefaultApi
 from apache_polaris.sdk.management.models.reset_principal_request import ResetPrincipalRequest
 from charmlibs import pathops
-from ops import CharmBase
 
 from config.polaris import PolarisConfig
 from core.constants import (
@@ -28,15 +27,10 @@ from core.workload.polaris import PolarisWorkload
 class PolarisManager(WithLogging):
     """Manage Polaris workload configuration and restarts."""
 
-    def __init__(
-        self,
-        charm: CharmBase,
-        context: Context,
-        workload: PolarisWorkload,
-    ) -> None:
-        self.charm = charm
+    def __init__(self, context: Context, workload: PolarisWorkload, is_leader: bool) -> None:
         self.context = context
         self.workload = workload
+        self.is_leader = is_leader
 
     def _api(self, client_secret: str) -> PolarisDefaultApi:
         """Return an authenticated Polaris management API object."""
@@ -106,7 +100,7 @@ class PolarisManager(WithLogging):
         should_restart = force_restart or config_changed
 
         if not self.context.cluster.metastore_bootstrapped:
-            if not self.charm.unit.is_leader():
+            if not self.is_leader:
                 self.logger.info("Skipping workload restart, metastore is not bootstrapped")
                 return
             # Note: Polaris 1.7.0 should make the bootstrap idempotent, so we might adapt

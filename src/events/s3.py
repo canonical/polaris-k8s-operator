@@ -71,7 +71,9 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
 
         self.s3_requirer = S3Requirer(self.charm, S3_RELATION_NAME)
         self.context._s3_requirer = self.s3_requirer
-        self.polaris_manager = PolarisManager(self.charm, self.context, self.workload)
+        self.polaris_manager = PolarisManager(
+            self.context, self.workload, self.charm.unit.is_leader()
+        )
         self.tls_manager = TLSManager(self.context, self.workload)
 
         self.framework.observe(
