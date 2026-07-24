@@ -35,8 +35,11 @@ class TLSManager(WithLogging):
 
         return self.context.unit_server.truststore_password
 
-    def import_ca_chain(self, ca_chain: list[str]) -> bool:
-        """Import a CA chain into the workload truststore."""
+    def ensure_ca_chain_imported(self, ca_chain: list[str]) -> bool:
+        """Import a CA chain into the workload truststore.
+
+        The boolean return type indicates if the workload should be restarted.
+        """
         if not ca_chain:
             return self.reset()
 

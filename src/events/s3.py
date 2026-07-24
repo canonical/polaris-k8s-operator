@@ -105,7 +105,7 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
                 ObjectStorageStatuses.IMPORTING_OBJECT_STORAGE_CA,
                 scope="unit",
             )
-            force_restart = self.tls_manager.import_ca_chain(self.context.s3.tls_ca_chain)
+            force_restart = self.tls_manager.ensure_ca_chain_imported(self.context.s3.tls_ca_chain)
         else:
             force_restart = self.tls_manager.reset()
 
