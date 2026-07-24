@@ -3,10 +3,7 @@
 
 """Polaris manager."""
 
-from __future__ import annotations
-
 from argparse import Namespace
-from typing import TYPE_CHECKING
 
 from apache_polaris.cli.api_client_builder import ApiClientBuilder
 from apache_polaris.cli.constants import DEFAULT_HEADER

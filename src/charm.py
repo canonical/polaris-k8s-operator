@@ -6,12 +6,16 @@
 
 import logging
 import warnings
+from typing import cast
 
 import ops
 from data_platform_helpers.advanced_statuses.handler import StatusHandler
 from pydantic.warnings import UnsupportedFieldAttributeWarning
 
+from protocols import CharmWithStatus
+
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
+
 from core.constants import POLARIS_CONTAINER_NAME
 from core.context import Context
 from core.workload.polaris import PolarisWorkload
@@ -38,9 +42,9 @@ class PolarisK8sCharm(ops.CharmBase):
         self.context = Context(self)
 
         # Events
-        self.polaris_events = PolarisEvents(self)
-        self.metastore_events = MetastoreEvents(self)
-        self.s3_events = S3Events(self)
+        self.polaris_events = PolarisEvents(self, self.context, self.polaris_workload)
+        self.metastore_events = MetastoreEvents(self, self.context, self.polaris_workload)
+        self.s3_events = S3Events(cast(CharmWithStatus, self), self.context, self.polaris_workload)
 
         self.status = StatusHandler(
             self,

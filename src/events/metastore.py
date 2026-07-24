@@ -3,10 +3,7 @@
 
 """Metastore relation event handlers."""
 
-from __future__ import annotations
-
 import json
-from typing import TYPE_CHECKING
 
 import ops
 from charms.data_platform_libs.v0.data_interfaces import (
@@ -21,12 +18,10 @@ from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtoc
 from data_platform_helpers.advanced_statuses.types import Scope
 
 from core.constants import METASTORE_RELATION_NAME, POLARIS_METASTORE_DATABASE_NAME
+from core.context import Context
 from core.logging import WithLogging
-from events import BaseEventHandler
+from core.workload.polaris import PolarisWorkload
 from managers.polaris import PolarisManager
-
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
 
 
 class _MetastoreStatuses:
@@ -55,18 +50,20 @@ class _MetastoreStatuses:
 MetastoreStatuses = _MetastoreStatuses()
 
 
-class MetastoreEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
+class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing metastore relation hooks."""
 
-    def __init__(self, charm: PolarisK8sCharm) -> None:
+    def __init__(
+        self, charm: ops.CharmBase, context: Context, polaris_workload: PolarisWorkload
+    ) -> None:
         super().__init__(charm, "metastore")
 
         self.name = "metastore"
-        self.state = charm.context
+        self.state = context
 
         self.charm = charm
-        self.context = charm.context
-        self.polaris_workload = charm.polaris_workload
+        self.context = context
+        self.polaris_workload = polaris_workload
 
         self.polaris_manager = PolarisManager(self.charm, self.context, self.polaris_workload)
         self.metastore = DatabaseRequires(

@@ -3,10 +3,7 @@
 
 """Charm Context definition and parsing logic."""
 
-from __future__ import annotations
-
 from functools import cached_property
-from typing import TYPE_CHECKING
 
 import ops
 from data_platform_helpers.advanced_statuses.components import StatusesState
@@ -36,9 +33,6 @@ from core.models import (
     S3Storage,
 )
 
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
-
 
 class Context(ops.Object, WithLogging, StatusesStateProtocol):
     """Properties and relations of the charm."""
@@ -46,7 +40,7 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
     # This element is injected by the s3 event handler to avoid duplicated side-effects
     _s3_requirer: S3Requirer
 
-    def __init__(self, charm: PolarisK8sCharm) -> None:
+    def __init__(self, charm: ops.CharmBase) -> None:
         super().__init__(charm, "charm_context")
         self.charm = charm
         self.raw_config = charm.config

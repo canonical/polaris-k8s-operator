@@ -3,11 +3,8 @@
 
 """Polaris charm general event handlers."""
 
-from __future__ import annotations
-
 import secrets
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import ops
 from data_platform_helpers.advanced_statuses.models import StatusObject
@@ -23,14 +20,12 @@ from core.constants import (
     RANDOM_KEY_SIZE,
     REST_PORT,
 )
+from core.context import Context
 from core.logging import WithLogging
-from events import BaseEventHandler
+from core.workload.polaris import PolarisWorkload
 from managers.polaris import PolarisManager
 
 SYSTEM_USER_SECRET_LABEL = "system-user"
-
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
 
 
 class _CharmStatuses:
@@ -95,18 +90,20 @@ class SystemUserSecretValidated:
     status: StatusObject | None = None
 
 
-class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
+class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing Polaris related event hooks."""
 
-    def __init__(self, charm: PolarisK8sCharm) -> None:
+    def __init__(
+        self, charm: ops.CharmBase, context: Context, polaris_workload: PolarisWorkload
+    ) -> None:
         super().__init__(charm, "polaris")
 
         self.name = "polaris"
-        self.state = charm.context
+        self.state = context
 
         self.charm = charm
-        self.context = charm.context
-        self.polaris_workload = charm.polaris_workload
+        self.context = context
+        self.polaris_workload = polaris_workload
 
         self.polaris_manager = PolarisManager(self.charm, self.context, self.polaris_workload)
         # TODO(console): Add console manager
@@ -194,7 +191,7 @@ class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
     def _rotate_admin_password(self, current_password: str, new_password: str) -> bool:
         """Rotate root principal credentials through Polaris management API."""
-        self.charm.status.set_running_status(
+        getattr(self.charm, "status").set_running_status(
             CharmStatuses.ROTATING_ROOT_PRINCIPAL_CREDENTIALS,
             scope="app",
         )

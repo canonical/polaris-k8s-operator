@@ -3,10 +3,6 @@
 
 """S3 Integration related event handlers."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 import ops
 from data_platform_helpers.advanced_statuses.models import StatusObject
 from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtocol
@@ -18,13 +14,12 @@ from object_storage import (
 )
 
 from core.constants import S3_RELATION_NAME
+from core.context import Context
 from core.logging import WithLogging
-from events import BaseEventHandler
+from core.workload.polaris import PolarisWorkload
 from managers.polaris import PolarisManager
 from managers.tls import TLSManager
-
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
+from protocols import CharmWithStatus
 
 
 class _ObjectStorageStatuses:
@@ -59,18 +54,20 @@ class _ObjectStorageStatuses:
 ObjectStorageStatuses = _ObjectStorageStatuses()
 
 
-class S3Events(BaseEventHandler, WithLogging, ManagerStatusProtocol):
+class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing S3 Integration event hooks."""
 
-    def __init__(self, charm: PolarisK8sCharm) -> None:
+    def __init__(
+        self, charm: CharmWithStatus, context: Context, polaris_workload: PolarisWorkload
+    ) -> None:
         super().__init__(charm, "s3")
 
         self.name = "s3"
-        self.state = charm.context
+        self.state = context
 
         self.charm = charm
-        self.context = charm.context
-        self.workload = charm.polaris_workload
+        self.context = context
+        self.workload = polaris_workload
 
         self.s3_requirer = S3Requirer(self.charm, S3_RELATION_NAME)
         self.context._s3_requirer = self.s3_requirer
