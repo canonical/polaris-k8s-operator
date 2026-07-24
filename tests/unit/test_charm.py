@@ -19,8 +19,9 @@ from core.constants import (
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 from core.models import REQUIRED_S3_PARAMETERS
-from core.statuses import CharmStatuses, MetastoreStatuses, ObjectStorageStatuses
-from events.polaris import SYSTEM_USER_SECRET_LABEL
+from events.metastore import MetastoreStatuses
+from events.polaris import SYSTEM_USER_SECRET_LABEL, CharmStatuses
+from events.s3 import ObjectStorageStatuses
 
 CONFIG = yaml.safe_load(Path("./config.yaml").read_text())
 ACTIONS = yaml.safe_load(Path("./actions.yaml").read_text())

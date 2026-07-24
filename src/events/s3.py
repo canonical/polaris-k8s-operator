@@ -18,10 +18,7 @@ from object_storage import (
 )
 
 from core.constants import S3_RELATION_NAME
-from core.context import Context
 from core.logging import WithLogging
-from core.statuses import CharmStatuses, ObjectStorageStatuses
-from core.workload.polaris import PolarisWorkload
 from events import BaseEventHandler
 from managers.polaris import PolarisManager
 from managers.tls import TLSManager
@@ -30,20 +27,50 @@ if TYPE_CHECKING:
     from charm import PolarisK8sCharm
 
 
+class _ObjectStorageStatuses:
+    """Status objects related to the object storage integration."""
+
+    OBJECT_STORAGE_RELATION_MISSING = StatusObject(
+        status="blocked",
+        message="Missing mandatory object storage relation",
+        action="Relate the charm to an object storage integrator",
+    )
+    OBJECT_STORAGE_NOT_READY = StatusObject(
+        status="waiting",
+        message="Waiting for object storage relation data",
+    )
+    IMPORTING_OBJECT_STORAGE_CA = StatusObject(
+        status="maintenance",
+        message="Importing object storage CA certificate",
+        running="blocking",
+    )
+
+    @staticmethod
+    def missing_parameters(fields: list[str]) -> StatusObject:
+        """Return a status for missing object storage relation data."""
+        fields_str = ", ".join(f"'{field}'" for field in fields)
+        return StatusObject(
+            status="waiting",
+            message=f"Missing object storage parameter(s): {fields_str}",
+            action=f"Set object storage parameter(s): {fields_str}",
+        )
+
+
+ObjectStorageStatuses = _ObjectStorageStatuses()
+
+
 class S3Events(BaseEventHandler, WithLogging, ManagerStatusProtocol):
     """Class implementing S3 Integration event hooks."""
 
-    def __init__(
-        self, charm: PolarisK8sCharm, context: Context, workload: PolarisWorkload
-    ) -> None:
+    def __init__(self, charm: PolarisK8sCharm) -> None:
         super().__init__(charm, "s3")
 
         self.name = "s3"
-        self.state = context
+        self.state = charm.context
 
         self.charm = charm
-        self.context = context
-        self.workload = workload
+        self.context = charm.context
+        self.workload = charm.polaris_workload
 
         self.s3_requirer = S3Requirer(self.charm, S3_RELATION_NAME)
         self.context._s3_requirer = self.s3_requirer
@@ -56,15 +83,6 @@ class S3Events(BaseEventHandler, WithLogging, ManagerStatusProtocol):
         self.framework.observe(
             self.s3_requirer.on.storage_connection_info_gone, self._on_s3_credential_gone
         )
-
-    def _set_importing_ca_status(self) -> None:
-        """Set a maintenance status while importing object storage CA certificates."""
-        status = getattr(self.charm, "status", None)
-        if status:
-            status.set_running_status(
-                ObjectStorageStatuses.IMPORTING_OBJECT_STORAGE_CA,
-                scope="unit",
-            )
 
     def _reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile S3 relation data and workload configuration."""
@@ -86,7 +104,10 @@ class S3Events(BaseEventHandler, WithLogging, ManagerStatusProtocol):
 
         force_restart = False
         if self.context.s3.has_custom_ca:
-            self._set_importing_ca_status()
+            self.charm.status.set_running_status(
+                ObjectStorageStatuses.IMPORTING_OBJECT_STORAGE_CA,
+                scope="unit",
+            )
             force_restart = self.tls_manager.import_ca_chain(self.context.s3.tls_ca_chain)
         else:
             force_restart = self.tls_manager.reset()
@@ -116,4 +137,4 @@ class S3Events(BaseEventHandler, WithLogging, ManagerStatusProtocol):
         if not self.context.s3.ready:
             return [ObjectStorageStatuses.OBJECT_STORAGE_NOT_READY]
 
-        return [CharmStatuses.ACTIVE_IDLE]
+        return []

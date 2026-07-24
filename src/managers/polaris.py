@@ -13,6 +13,7 @@ from apache_polaris.cli.constants import DEFAULT_HEADER
 from apache_polaris.sdk.management.api import PolarisDefaultApi
 from apache_polaris.sdk.management.models.reset_principal_request import ResetPrincipalRequest
 from charmlibs import pathops
+from ops import CharmBase
 
 from config.polaris import PolarisConfig
 from core.constants import (
@@ -26,16 +27,13 @@ from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
 
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
-
 
 class PolarisManager(WithLogging):
     """Manage Polaris workload configuration and restarts."""
 
     def __init__(
         self,
-        charm: PolarisK8sCharm,
+        charm: CharmBase,
         context: Context,
         workload: PolarisWorkload,
     ) -> None:

@@ -38,9 +38,9 @@ class PolarisK8sCharm(ops.CharmBase):
         self.context = Context(self)
 
         # Events
-        self.polaris_events = PolarisEvents(self, self.context, self.polaris_workload)
-        self.metastore_events = MetastoreEvents(self, self.context, self.polaris_workload)
-        self.s3_events = S3Events(self, self.context, self.polaris_workload)
+        self.polaris_events = PolarisEvents(self)
+        self.metastore_events = MetastoreEvents(self)
+        self.s3_events = S3Events(self)
 
         self.status = StatusHandler(
             self,

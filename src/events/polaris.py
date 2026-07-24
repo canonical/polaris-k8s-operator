@@ -23,10 +23,7 @@ from core.constants import (
     RANDOM_KEY_SIZE,
     REST_PORT,
 )
-from core.context import Context
 from core.logging import WithLogging
-from core.statuses import CharmStatuses, ConfigStatuses
-from core.workload.polaris import PolarisWorkload
 from events import BaseEventHandler
 from managers.polaris import PolarisManager
 
@@ -34,6 +31,59 @@ SYSTEM_USER_SECRET_LABEL = "system-user"
 
 if TYPE_CHECKING:
     from charm import PolarisK8sCharm
+
+
+class _CharmStatuses:
+    """Generic status objects related to the charm."""
+
+    ACTIVE_IDLE = StatusObject(status="active", message="")
+    NOT_RUNNING = StatusObject(status="maintenance", message="Polaris is not serving requests")
+    ROTATING_ROOT_PRINCIPAL_CREDENTIALS = StatusObject(
+        status="maintenance",
+        message="Rotating Polaris root principal credentials",
+        running="blocking",
+    )
+    SYSTEM_USER_SECRET_DOES_NOT_EXIST = StatusObject(
+        status="blocked", message="Secret provided as system-user does not exist"
+    )
+    SYSTEM_USER_SECRET_INSUFFICIENT_PERMISSION = StatusObject(
+        status="blocked",
+        message="Secret provided as system-user has not been granted to the charm",
+    )
+    SYSTEM_USER_SECRET_INVALID = StatusObject(
+        status="blocked", message="Secret provided as system-user has invalid content"
+    )
+    WAITING_PEBBLE = StatusObject(status="maintenance", message="Waiting for Pebble")
+
+
+CharmStatuses = _CharmStatuses()
+
+
+class _ConfigStatuses:
+    """Status objects related to config options."""
+
+    @staticmethod
+    def missing_config_parameters(fields: list[str]) -> StatusObject:
+        """Missing configuration values."""
+        fields_str = ", ".join(f"'{field}'" for field in fields)
+        return StatusObject(
+            status="blocked",
+            message=f"Missing config(s): {fields_str}",
+            action=f"Set config(s): {fields_str}",
+        )
+
+    @staticmethod
+    def invalid_config_parameters(fields: list[str]) -> StatusObject:
+        """Invalid configuration values."""
+        fields_str = ", ".join(f"'{field}'" for field in fields)
+        return StatusObject(
+            status="blocked",
+            message=f"Invalid config(s): {fields_str}",
+            action=f"Fix invalid config(s): {fields_str}",
+        )
+
+
+ConfigStatuses = _ConfigStatuses()
 
 
 @dataclass(frozen=True)
@@ -48,17 +98,15 @@ class SystemUserSecretValidated:
 class PolarisEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
     """Class implementing Polaris related event hooks."""
 
-    def __init__(
-        self, charm: PolarisK8sCharm, context: Context, polaris_workload: PolarisWorkload
-    ) -> None:
+    def __init__(self, charm: PolarisK8sCharm) -> None:
         super().__init__(charm, "polaris")
 
         self.name = "polaris"
-        self.state = context
+        self.state = charm.context
 
         self.charm = charm
-        self.context = context
-        self.polaris_workload = polaris_workload
+        self.context = charm.context
+        self.polaris_workload = charm.polaris_workload
 
         self.polaris_manager = PolarisManager(self.charm, self.context, self.polaris_workload)
         # TODO(console): Add console manager
