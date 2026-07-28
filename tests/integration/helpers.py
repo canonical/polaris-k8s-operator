@@ -5,6 +5,7 @@
 
 from argparse import Namespace
 from pathlib import Path
+from typing import TypedDict
 
 import jubilant
 import yaml
@@ -25,6 +26,21 @@ METADATA = yaml.safe_load(Path("metadata.yaml").read_text())
 APP_NAME = METADATA["name"]
 
 INTERNAL_ADMIN_PASSWORD_KEY = f"{ADMIN_USER}-password"
+
+S3Info = TypedDict(
+    "S3Info",
+    {
+        "endpoint": str,
+        "access_key": str,
+        "secret_key": str,
+        "region": str,
+        "bucket": str,
+        "path": str,
+        "ca_bundle_path": str,
+        "role_arn": str,
+        "user_arn": str,
+    },
+)
 
 
 def polaris_base_url(
@@ -98,3 +114,19 @@ def polaris_management_api(
         realm=realm,
     )
     return PolarisDefaultApi(api_client)
+
+
+def set_s3_credentials(
+    juju: jubilant.Juju,
+    s3_app_name: str,
+    access_key: str,
+    secret_key: str,
+) -> None:
+    """Set s3 credentials using the Juju secret pattern."""
+    params = {
+        "access-key": access_key,
+        "secret-key": secret_key,
+    }
+    secret_uri = juju.add_secret("s3-credentials", params)
+    juju.grant_secret(secret_uri, s3_app_name)
+    juju.config(s3_app_name, {"credentials": secret_uri})

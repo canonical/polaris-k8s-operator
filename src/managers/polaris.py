@@ -3,10 +3,7 @@
 
 """Polaris manager."""
 
-from __future__ import annotations
-
 from argparse import Namespace
-from typing import TYPE_CHECKING
 
 from apache_polaris.cli.api_client_builder import ApiClientBuilder
 from apache_polaris.cli.constants import DEFAULT_HEADER
@@ -26,22 +23,14 @@ from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
 
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
-
 
 class PolarisManager(WithLogging):
     """Manage Polaris workload configuration and restarts."""
 
-    def __init__(
-        self,
-        charm: PolarisK8sCharm,
-        context: Context,
-        workload: PolarisWorkload,
-    ) -> None:
-        self.charm = charm
+    def __init__(self, context: Context, workload: PolarisWorkload, is_leader: bool) -> None:
         self.context = context
         self.workload = workload
+        self.is_leader = is_leader
 
     def _api(self, client_secret: str) -> PolarisDefaultApi:
         """Return an authenticated Polaris management API object."""
@@ -78,6 +67,7 @@ class PolarisManager(WithLogging):
 
     def update(
         self,
+        force_restart: bool = False,
     ) -> None:
         """Update Polaris service and restart it."""
         if not self.context.cluster.ready:
@@ -88,10 +78,14 @@ class PolarisManager(WithLogging):
             self.logger.info("Skipping workload restart, metastore is not ready")
             return
 
+        if not self.context.s3.ready:
+            self.logger.info("Skipping workload restart, object storage is not ready")
+            return
+
         self.logger.info("Restarting Polaris workload")
 
         config = PolarisConfig(context=self.context)
-        should_restart = any(
+        config_changed = any(
             (
                 pathops.ensure_contents(
                     self.workload.fs / POLARIS_APPLICATION_PROPERTIES,
@@ -103,9 +97,10 @@ class PolarisManager(WithLogging):
                 ),
             )
         )
+        should_restart = force_restart or config_changed
 
         if not self.context.cluster.metastore_bootstrapped:
-            if not self.charm.unit.is_leader():
+            if not self.is_leader:
                 self.logger.info("Skipping workload restart, metastore is not bootstrapped")
                 return
             # Note: Polaris 1.7.0 should make the bootstrap idempotent, so we might adapt
@@ -117,4 +112,4 @@ class PolarisManager(WithLogging):
         if not should_restart:
             self.logger.info("Workload restart skipped because the configuration did not change.")
             return
-        self.workload.restart()
+        self.workload.restart(environment=config.service_environment)

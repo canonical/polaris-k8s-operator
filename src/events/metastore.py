@@ -3,10 +3,7 @@
 
 """Metastore relation event handlers."""
 
-from __future__ import annotations
-
 import json
-from typing import TYPE_CHECKING
 
 import ops
 from charms.data_platform_libs.v0.data_interfaces import (
@@ -23,20 +20,41 @@ from data_platform_helpers.advanced_statuses.types import Scope
 from core.constants import METASTORE_RELATION_NAME, POLARIS_METASTORE_DATABASE_NAME
 from core.context import Context
 from core.logging import WithLogging
-from core.statuses import MetastoreStatuses
 from core.workload.polaris import PolarisWorkload
-from events import BaseEventHandler
 from managers.polaris import PolarisManager
 
-if TYPE_CHECKING:
-    from charm import PolarisK8sCharm
+
+class _MetastoreStatuses:
+    """Status objects related to the metastore integration."""
+
+    METASTORE_RELATION_MISSING = StatusObject(
+        status="blocked",
+        message="Missing mandatory metastore relation",
+        action="Relate the charm to a PostgreSQL database using the metastore endpoint",
+    )
+    METASTORE_NOT_READY = StatusObject(
+        status="waiting",
+        message="Waiting for metastore relation data",
+    )
+
+    @staticmethod
+    def provider_error(message: str, resolution: str) -> StatusObject:
+        """Return a status for fatal provider-side metastore errors."""
+        return StatusObject(
+            status="blocked",
+            message=message,
+            action=resolution,
+        )
 
 
-class MetastoreEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
+MetastoreStatuses = _MetastoreStatuses()
+
+
+class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing metastore relation hooks."""
 
     def __init__(
-        self, charm: PolarisK8sCharm, context: Context, polaris_workload: PolarisWorkload
+        self, charm: ops.CharmBase, context: Context, polaris_workload: PolarisWorkload
     ) -> None:
         super().__init__(charm, "metastore")
 
@@ -47,7 +65,9 @@ class MetastoreEvents(BaseEventHandler, WithLogging, ManagerStatusProtocol):
         self.context = context
         self.polaris_workload = polaris_workload
 
-        self.polaris_manager = PolarisManager(self.charm, self.context, self.polaris_workload)
+        self.polaris_manager = PolarisManager(
+            self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
+        )
         self.metastore = DatabaseRequires(
             charm=self.charm,
             relation_name=METASTORE_RELATION_NAME,

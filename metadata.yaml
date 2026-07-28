@@ -49,4 +49,9 @@ requires:
     limit: 1
     optional: false
 
+  s3-credentials:
+    interface: s3
+    limit: 1
+    optional: false  # TODO(object-storage): mark as optional once we support others
+
 provides: {}

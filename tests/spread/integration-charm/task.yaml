@@ -3,6 +3,33 @@
 
 summary: Run integration-charm tests
 
+prepare: |
+  export IP=$(ip -4 -j route get 2.2.2.2 | jq -r '.[] | .prefsrc')
+
+  sudo microceph cluster bootstrap
+  sudo microceph disk add loop,1G,3
+  sudo microceph enable rgw
+
+  for i in $(seq 1 10); do
+    if curl -s "http://$IP/" > /dev/null 2>&1; then
+      echo "RGW is ready"
+      break
+    fi
+    echo "Waiting for RGW..."
+    sleep 5
+  done
+
+
+  sudo microceph.radosgw-admin user create \
+    --uid test --display-name test \
+    --access-key=foo --secret-key=bar
+
+  {
+    echo "S3_SERVER_URL=http://$IP"
+    echo "S3_ACCESS_KEY=foo"
+    echo "S3_SECRET_KEY=bar"
+  } > "$SPREAD_PATH/.env"
+
 execute: |
   cd "$SPREAD_PATH"
   tox run -e integration-charm -- --model testing --keep-models
