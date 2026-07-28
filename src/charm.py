@@ -10,8 +10,6 @@ from typing import cast
 
 from pydantic.warnings import UnsupportedFieldAttributeWarning
 
-from protocols import CharmWithStatus
-
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
 import ops
@@ -29,6 +27,7 @@ from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreEvents
 from events.polaris import PolarisEvents
 from events.s3 import S3Events
+from protocols import CharmWithStatus
 
 logger = logging.getLogger(__name__)
 
