@@ -10,12 +10,12 @@ from data_platform_helpers.advanced_statuses.handler import StatusHandler
 
 
 class HasStatusProtocol(Protocol):
-    """Thing."""
+    """Type checks if the charm uses advanced statuses."""
 
     status: StatusHandler
 
 
 class CharmWithStatus(ops.CharmBase, HasStatusProtocol):
-    """Thing."""
+    """Merges ops class with protocol."""
 
     pass
