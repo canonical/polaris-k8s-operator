@@ -49,12 +49,16 @@ jobs:
               .split("\n")
           )
 
-
+          # COS charms are not available for arm64
+          ARM_DISABLED = {"integration-observability"}
           jobs = []
           for job in spread_jobs:
               # Example: "github-ci:self-hosted-linux-amd64-noble-large:tests/spread/basic"
               _, runner, task = job.split(":")
               task_name = task.removeprefix("tests/spread/")
+
+              if "arm" in runner and task_name in ARM_DISABLED:
+                  continue
 
               if "arm" in runner:
                   architecture = "arm64"

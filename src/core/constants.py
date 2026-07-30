@@ -11,6 +11,7 @@ POLARIS_GROUP = "_daemon_"
 POLARIS_USER = "_daemon_"
 
 REST_PORT = 8181
+MONITORING_PORT = 8182
 REALM = "POLARIS"
 
 # Files

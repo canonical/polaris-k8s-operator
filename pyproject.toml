@@ -17,7 +17,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-charm-libs = ["pydantic (>=2,<3)"]
+charm-libs = [
+  "cosl (>=1.10.2,<2.0.0)",
+  "pydantic (>=2,<3)",
+  "pyyaml (>=6.0.3,<7.0.0)",
+]
 format = [
   "ruff>=0.15.0",
 ]
@@ -38,6 +42,8 @@ integration = [
   "python-dotenv (>=1.2.2,<2.0.0)",
   "boto3 (>=1.43.3,<1.43.47)",
   "pyiceberg[pyarrow,s3fs] (>=0.10.0,<1.0.0)",
+  "tenacity (>=9.1.4,<10.0.0)",
+  "httpx2 (>=2.7.0,<3.0.0)",
 ]
 
 [tool.coverage.run]
@@ -69,7 +75,7 @@ lint.ignore = [
   "D413",
 ]
 lint.per-file-ignores = { "src/charm.py" = ["E402"], "tests/*" = ["D100", "D101", "D102", "D103", "D104"], "src/*/__init__.py" = ["D104"] }
-extend-exclude = ["__pycache__", "*.egg_info"]
+extend-exclude = ["__pycache__", "*.egg_info", "lib"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
