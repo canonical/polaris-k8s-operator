@@ -48,6 +48,10 @@ class _CharmStatuses:
     SYSTEM_USER_SECRET_INVALID = StatusObject(
         status="blocked", message="Secret provided as system-user has invalid content"
     )
+    PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE = StatusObject(
+        status="waiting",
+        message="Waiting for metastore to update admin password",
+    )
     WAITING_PEBBLE = StatusObject(status="maintenance", message="Waiting for Pebble")
 
 
@@ -204,6 +208,22 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             return False
         return True
 
+    def _has_pending_admin_password_update(self) -> bool:
+        """Return whether a configured admin password change is pending application."""
+        if not self.charm.unit.is_leader():
+            return False
+
+        system_user = self._validate_system_user_secret()
+        if system_user.status or not system_user.password:
+            return False
+
+        cluster = self.context.cluster
+        return (
+            bool(cluster.admin_password)
+            and cluster.admin_password != system_user.password
+            and not cluster.metastore_bootstrapped
+        )
+
     def _ensure_admin_credentials(self) -> bool:
         """Ensure leader-owned root principal credentials are set."""
         if not self.charm.unit.is_leader():
@@ -222,10 +242,19 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         if cluster.admin_password == admin_password:
             return True
 
-        if cluster.metastore_bootstrapped and not self._rotate_admin_password(
-            cluster.admin_password,
-            admin_password,
-        ):
+        if not cluster.admin_password:
+            cluster.set_admin_password(admin_password)
+            cluster.increment_epoch()
+            return True
+
+        if not cluster.metastore_bootstrapped:
+            self.logger.info(
+                "Waiting to update Polaris root principal credentials"
+                " until metastore is bootstrapped"
+            )
+            return True
+
+        if not self._rotate_admin_password(cluster.admin_password, admin_password):
             return False
 
         cluster.set_admin_password(admin_password)
@@ -326,6 +355,8 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 system_user_status := self._validate_system_user_secret().status
             ):
                 status_list.append(system_user_status)
+            elif self._has_pending_admin_password_update():
+                status_list.append(CharmStatuses.PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE)
 
         if not self.polaris_workload.ready:
             status_list.append(CharmStatuses.WAITING_PEBBLE)

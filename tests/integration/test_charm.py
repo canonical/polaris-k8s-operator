@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 
 import jubilant
-import pytest
 import yaml
 
 from core.constants import ADMIN_USER
@@ -71,7 +70,6 @@ def test_polaris_api_is_reachable_random_passwd(juju: jubilant.Juju) -> None:
     assert principals.principals[0].client_id == ADMIN_USER
 
 
-@pytest.mark.skip(reason="Enable once bootstrap is idempotent")
 def test_remove_integration_re_integrate_metastore(
     juju: jubilant.Juju, metastore: SingleVariantCharmVersion
 ) -> None:

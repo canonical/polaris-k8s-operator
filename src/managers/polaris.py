@@ -5,6 +5,7 @@
 
 from argparse import Namespace
 
+import ops
 from apache_polaris.cli.api_client_builder import ApiClientBuilder
 from apache_polaris.cli.constants import DEFAULT_HEADER
 from apache_polaris.sdk.management.api import PolarisDefaultApi
@@ -99,15 +100,24 @@ class PolarisManager(WithLogging):
         )
         should_restart = force_restart or config_changed
 
-        if not self.context.cluster.metastore_bootstrapped:
-            if not self.is_leader:
-                self.logger.info("Skipping workload restart, metastore is not bootstrapped")
-                return
-            # Note: Polaris 1.7.0 should make the bootstrap idempotent, so we might adapt
-            # this part in the future
-            self.workload.bootstrap_metastore(REALM, config.bootstrap_credentials)
-            self.context.cluster.set_metastore_bootstrapped(True)
-            should_restart = True
+        # Metastore bootstrap logic.
+        # The command is idempotent from 1.7.0, so the leader can just run it
+        # everytime. We get two main benefits from doing that:
+        # - we can remove the relation with the metastore and re-relate (useful for backups)
+        # - this will help with upgrades
+        if self.is_leader:
+            try:
+                self.workload.bootstrap_metastore(REALM, config.bootstrap_credentials)
+            except ops.pebble.ExecError:
+                self.logger.exception("Failed to bootstrap Polaris metastore")
+                should_restart = False
+            else:
+                if not self.context.cluster.metastore_bootstrapped:
+                    should_restart = True
+                self.context.cluster.set_metastore_bootstrapped(True)
+        elif not self.context.cluster.metastore_bootstrapped:
+            self.logger.info("Skipping workload restart, metastore is not bootstrapped")
+            return
 
         if not should_restart:
             self.logger.info("Workload restart skipped because the configuration did not change.")
