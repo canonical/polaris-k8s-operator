@@ -1,13 +1,12 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-summary: Run integration-storage tests
+summary: Run integration-storage-non-vended tests
 
 prepare: |
   # The setup here consists in
-  # 1. Generating self-signed certs for microceph and enable RGW
-  # 2. Enabling STS support so that we can use vended credentials
-  # 3. Creating the appropriate role so that use STS
+  # 1. Generating self-signed certs for microceph and enabling RGW
+  # 2. Creating a plain RGW user for direct S3 access
 
   export IP=$(ip -4 -j route get 2.2.2.2 | jq -r '.[] | .prefsrc')
   mkdir -p /tmp/certs
@@ -33,10 +32,6 @@ prepare: |
     --ssl-certificate "$SERVER_CRT_B64" \
     --ssl-private-key "$SERVER_KEY_B64"
 
-  sudo microceph.ceph config set global rgw_s3_auth_use_sts true
-  sudo microceph.ceph config set global rgw_sts_key "1234567890abcdef"
-  sudo snap restart microceph
-
   for i in $(seq 1 10); do
     if curl -sk "https://$IP/" > /dev/null 2>&1; then
       echo "RGW is ready"
@@ -50,52 +45,13 @@ prepare: |
     --uid test --display-name test \
     --access-key=foo --secret-key=bar
 
-  sudo microceph.radosgw-admin caps add --uid="test" --caps="roles=*"
-  cat > /tmp/assume-role-policy.json <<'EOF'
-  {
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Principal": {"AWS": ["arn:aws:iam:::user/test"]},
-        "Action": ["sts:AssumeRole"]
-      }
-    ]
-  }
-  EOF
-  cat > /tmp/role-policy.json <<'EOF'
-  {
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Action": ["s3:*"],
-        "Resource": ["arn:aws:s3:::test-bucket", "arn:aws:s3:::test-bucket/*"]
-      }
-    ]
-  }
-  EOF
-  export AWS_ACCESS_KEY_ID=foo
-  export AWS_SECRET_ACCESS_KEY=bar
-  export AWS_DEFAULT_REGION=us-east-1
-  ROLE_ARN=$(aws --no-verify-ssl --endpoint-url "https://$IP" iam create-role \
-    --role-name polaris-test-role \
-    --assume-role-policy-document file:///tmp/assume-role-policy.json \
-    --query 'Role.Arn' --output text)
-  aws --no-verify-ssl --endpoint-url "https://$IP" iam put-role-policy \
-    --role-name polaris-test-role \
-    --policy-name polaris-test-policy \
-    --policy-document file:///tmp/role-policy.json
-
   {
     echo "S3_SERVER_URL=https://$IP"
     echo "S3_ACCESS_KEY=foo"
     echo "S3_SECRET_KEY=bar"
     echo "S3_CA_BUNDLE_PATH=/tmp/certs/ca.crt"
-    echo "S3_ROLE_ARN=$ROLE_ARN"
-    echo "S3_USER_ARN=arn:aws:iam:::user/test"
   } > "$SPREAD_PATH/.env"
 
 execute: |
   cd "$SPREAD_PATH"
-  tox run -e integration-storage -- --model testing --keep-models
+  tox run -e integration-storage-non-vended -- --model testing --keep-models
