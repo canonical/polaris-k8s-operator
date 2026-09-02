@@ -48,18 +48,29 @@ class PolarisConfig(WithLogging):
     @property
     def service_environment(self) -> dict[str, str]:
         """Return environment variables for the Polaris service."""
-        truststore_password = self.context.unit_server.truststore_password
-        if not self.context.s3.has_custom_ca or not truststore_password:
-            return {"JAVA_TOOL_OPTIONS": ""}
+        env = {"JAVA_TOOL_OPTIONS": ""}
 
-        return {
-            "JAVA_TOOL_OPTIONS": " ".join(
+        s3 = self.context.s3
+        if s3.ready:
+            env.update(
+                {
+                    "AWS_ACCESS_KEY_ID": s3.access_key,
+                    "AWS_SECRET_ACCESS_KEY": s3.secret_key,
+                    "AWS_REGION": s3.region,
+                    "AWS_DEFAULT_REGION": s3.region,
+                }
+            )
+
+        truststore_password = self.context.unit_server.truststore_password
+        if self.context.s3.has_custom_ca and truststore_password:
+            env["JAVA_TOOL_OPTIONS"] = " ".join(
                 (
                     f"-Djavax.net.ssl.trustStore={OBJECT_STORAGE_TRUSTSTORE}",
                     f"-Djavax.net.ssl.trustStorePassword={truststore_password}",
                 )
             )
-        }
+
+        return env
 
     @property
     def _s3_conf(self) -> dict[str, str]:
