@@ -145,6 +145,7 @@ def test_polaris_catalog_write_read(
             "oauth2-server-uri": f"{base_url}/api/catalog/v1/oauth/tokens",
             "scope": "PRINCIPAL_ROLE:ALL",
             "header.Polaris-Realm": REALM,
+            "header.X-Iceberg-Access-Delegation": "",  # Important!!
             # Note: this makes pyiceberg use s3fs/botocore, thus respecting AWS_CA_BUNDLE.
             # Otherwise, we would have to trust the CA at the system level (easy to do in
             # a spread test, but inconvenient for local testing)
