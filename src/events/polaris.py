@@ -32,7 +32,7 @@ class _CharmStatuses:
     """Generic status objects related to the charm."""
 
     ACTIVE_IDLE = StatusObject(status="active", message="")
-    NOT_RUNNING = StatusObject(status="maintenance", message="Polaris is not serving requests")
+    NOT_RUNNING = StatusObject(status="waiting", message="Polaris is not serving requests")
     ROTATING_ROOT_PRINCIPAL_CREDENTIALS = StatusObject(
         status="maintenance",
         message="Rotating Polaris root principal credentials",
@@ -360,8 +360,5 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
         if not self.polaris_workload.ready:
             status_list.append(CharmStatuses.WAITING_PEBBLE)
-
-        if not self.polaris_workload.active:
-            status_list.append(CharmStatuses.NOT_RUNNING)
 
         return status_list or [CharmStatuses.ACTIVE_IDLE]

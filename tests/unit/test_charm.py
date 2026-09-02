@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import ops
 import yaml
+from ops.pebble import ServiceStatus
 from ops.testing import Container, Context, PeerRelation, Relation, Secret, State
 
 from charm import PolarisK8sCharm
@@ -137,6 +138,14 @@ def test_polaris_missing_region_s3(
     s3_relation: Relation,
 ) -> None:
     # Given
+    polaris_container = Container(
+        name=polaris_container.name,
+        can_connect=polaris_container.can_connect,
+        mounts=polaris_container.mounts,
+        execs=polaris_container.execs,
+        service_statuses={next(iter(polaris_container.service_statuses)): ServiceStatus.INACTIVE},
+        layers=polaris_container.layers,
+    )
     s3_relation = replace(
         s3_relation,
         remote_app_data={
@@ -158,7 +167,8 @@ def test_polaris_missing_region_s3(
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert ObjectStorageStatuses.missing_parameters(["region"]).message == out.unit_status.message
+    assert out.unit_status.message.startswith("Missing object storage parameter(s): 'region'"[:40])
+    assert "status-detail" in out.unit_status.message
 
 
 def test_bare_leader_deployment_writes_config_with_random_password(

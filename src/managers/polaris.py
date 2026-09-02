@@ -100,9 +100,8 @@ class PolarisManager(WithLogging):
         )
         should_restart = force_restart or config_changed
 
-        # Metastore bootstrap logic.
-        # The command is idempotent from 1.7.0, so the leader can just run it
-        # everytime. We get two main benefits from doing that:
+        # The bootstrap command is idempotent from 1.7.0, so the leader can just run it
+        # every time. We get two main benefits from doing that:
         # - we can remove the relation with the metastore and re-relate (useful for backups)
         # - this will help with upgrades
         if self.is_leader:
