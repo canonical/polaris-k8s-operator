@@ -5,6 +5,7 @@
 
 import secrets
 from dataclasses import dataclass
+from enum import Enum, auto
 
 import ops
 from data_platform_helpers.advanced_statuses.models import StatusObject
@@ -32,7 +33,7 @@ class _CharmStatuses:
     """Generic status objects related to the charm."""
 
     ACTIVE_IDLE = StatusObject(status="active", message="")
-    NOT_RUNNING = StatusObject(status="maintenance", message="Polaris is not serving requests")
+    NOT_RUNNING = StatusObject(status="waiting", message="Polaris is not serving requests")
     ROTATING_ROOT_PRINCIPAL_CREDENTIALS = StatusObject(
         status="maintenance",
         message="Rotating Polaris root principal credentials",
@@ -47,6 +48,10 @@ class _CharmStatuses:
     )
     SYSTEM_USER_SECRET_INVALID = StatusObject(
         status="blocked", message="Secret provided as system-user has invalid content"
+    )
+    PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE = StatusObject(
+        status="waiting",
+        message="Waiting for metastore to update admin password",
     )
     WAITING_PEBBLE = StatusObject(status="maintenance", message="Waiting for Pebble")
 
@@ -88,6 +93,14 @@ class SystemUserSecretValidated:
     configured: bool
     password: str | None = None
     status: StatusObject | None = None
+
+
+class EnsureAdminCredentialsResult(Enum):
+    """Possible outcomes when reconciling Polaris admin credentials."""
+
+    APPLIED = auto()
+    PENDING = auto()
+    FAILED = auto()
 
 
 class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
@@ -204,15 +217,27 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             return False
         return True
 
-    def _ensure_admin_credentials(self) -> bool:
+    def _has_pending_admin_password_update(self) -> bool:
+        """Return whether a configured admin password change is pending application."""
+        if not self.charm.unit.is_leader():
+            return False
+
+        system_user = self._validate_system_user_secret()
+        if system_user.status or not system_user.password:
+            return False
+
+        cluster = self.context.cluster
+        return bool(cluster.admin_password) and cluster.admin_password != system_user.password
+
+    def _ensure_admin_credentials(self) -> EnsureAdminCredentialsResult:
         """Ensure leader-owned root principal credentials are set."""
         if not self.charm.unit.is_leader():
-            return True
+            return EnsureAdminCredentialsResult.APPLIED
 
         system_user = self._validate_system_user_secret()
         if system_user.status:
             self.logger.error(system_user.status.message)
-            return False
+            return EnsureAdminCredentialsResult.FAILED
 
         cluster = self.context.cluster
         admin_password = (
@@ -220,17 +245,26 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         )
 
         if cluster.admin_password == admin_password:
-            return True
+            return EnsureAdminCredentialsResult.APPLIED
 
-        if cluster.metastore_bootstrapped and not self._rotate_admin_password(
-            cluster.admin_password,
-            admin_password,
-        ):
-            return False
+        if not cluster.admin_password:
+            cluster.set_admin_password(admin_password)
+            cluster.increment_epoch()
+            return EnsureAdminCredentialsResult.APPLIED
+
+        if not cluster.metastore_bootstrapped:
+            self.logger.info(
+                "Waiting to update Polaris root principal credentials"
+                " until metastore is bootstrapped"
+            )
+            return EnsureAdminCredentialsResult.PENDING
+
+        if not self._rotate_admin_password(cluster.admin_password, admin_password):
+            return EnsureAdminCredentialsResult.FAILED
 
         cluster.set_admin_password(admin_password)
         cluster.increment_epoch()
-        return True
+        return EnsureAdminCredentialsResult.APPLIED
 
     def _ensure_token_broker_key(self) -> None:
         """Ensure leader-owned token broker key is set."""
@@ -242,25 +276,31 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         if cluster.shared_key != shared_key:
             cluster.set_shared_key(shared_key)
 
-    def _reconcile(self, event: ops.EventBase | None = None) -> None:
+    def _reconcile(self, event: ops.EventBase) -> None:
         """Reconcile peer state and local workload configuration."""
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
-            if event:
-                event.defer()
+            event.defer()
             return
 
         if not self.polaris_workload.ready:
             self.logger.info("Workload not ready")
-            if event:
-                event.defer()
+            event.defer()
             return
 
-        if not self._ensure_admin_credentials():
+        ensure_admin_credentials_result = self._ensure_admin_credentials()
+        if ensure_admin_credentials_result is EnsureAdminCredentialsResult.FAILED:
             return
 
         self._ensure_token_broker_key()
         self.polaris_manager.update()
+
+        if ensure_admin_credentials_result is EnsureAdminCredentialsResult.PENDING:
+            ensure_admin_credentials_result = self._ensure_admin_credentials()
+            if ensure_admin_credentials_result is EnsureAdminCredentialsResult.FAILED:
+                return
+            if ensure_admin_credentials_result is EnsureAdminCredentialsResult.PENDING:
+                event.defer()
         # TODO(console): Update console_manager as well.
 
     def _on_update(self, event: ops.EventBase) -> None:
@@ -326,11 +366,10 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 system_user_status := self._validate_system_user_secret().status
             ):
                 status_list.append(system_user_status)
+            elif self._has_pending_admin_password_update():
+                status_list.append(CharmStatuses.PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE)
 
         if not self.polaris_workload.ready:
             status_list.append(CharmStatuses.WAITING_PEBBLE)
-
-        if not self.polaris_workload.active:
-            status_list.append(CharmStatuses.NOT_RUNNING)
 
         return status_list or [CharmStatuses.ACTIVE_IDLE]

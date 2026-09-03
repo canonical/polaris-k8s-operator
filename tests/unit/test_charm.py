@@ -7,13 +7,16 @@ from unittest.mock import patch
 
 import ops
 import yaml
-from ops.testing import Container, Context, PeerRelation, Relation, Secret, State
+from ops.pebble import ServiceStatus
+from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secret, State
 
 from charm import PolarisK8sCharm
 from core.constants import (
     ADMIN_USER,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
+    POLARIS_CONTAINER_NAME,
+    POLARIS_SERVICE_NAME,
     RANDOM_KEY_SIZE,
     SYMMETRIC_KEY,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
@@ -137,6 +140,14 @@ def test_polaris_missing_region_s3(
     s3_relation: Relation,
 ) -> None:
     # Given
+    polaris_container = Container(
+        name=polaris_container.name,
+        can_connect=polaris_container.can_connect,
+        mounts=polaris_container.mounts,
+        execs=polaris_container.execs,
+        service_statuses={next(iter(polaris_container.service_statuses)): ServiceStatus.INACTIVE},
+        layers=polaris_container.layers,
+    )
     s3_relation = replace(
         s3_relation,
         remote_app_data={
@@ -158,7 +169,8 @@ def test_polaris_missing_region_s3(
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert ObjectStorageStatuses.missing_parameters(["region"]).message == out.unit_status.message
+    assert out.unit_status.message.startswith("Missing object storage parameter(s): 'region'"[:40])
+    assert "status-detail" in out.unit_status.message
 
 
 def test_bare_leader_deployment_writes_config_with_random_password(
@@ -297,6 +309,11 @@ def test_secret_changed_updates_leader_config_and_epoch(
     polaris_peers_relation = replace(
         polaris_peers_relation, local_app_data={"metastore_bootstrapped": "true"}
     )
+    internal_secret = Secret(
+        {"charmed-operator-password": USER_PASSWORD},
+        label=INTERNAL_SYSTEM_USER_SECRET_LABEL,
+        owner="app",
+    )
     user_secret = Secret(
         {ADMIN_USER: USER_PASSWORD},
         latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
@@ -308,7 +325,7 @@ def test_secret_changed_updates_leader_config_and_epoch(
         leader=True,
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
         containers=[polaris_container],
-        secrets=[user_secret],
+        secrets=[internal_secret, user_secret],
     )
 
     # When
@@ -326,6 +343,341 @@ def test_secret_changed_updates_leader_config_and_epoch(
 
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "2"
+
+
+def test_secret_changed_applies_password_update_after_bootstrap(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={
+            "shared-key": "shared-key-value",
+            "epoch": "2",
+            "metastore_bootstrapped": "false",
+        },
+    )
+    internal_secret = Secret(
+        {"charmed-operator-password": USER_PASSWORD},
+        label=INTERNAL_SYSTEM_USER_SECRET_LABEL,
+        owner="app",
+    )
+    user_secret = Secret(
+        {ADMIN_USER: USER_PASSWORD},
+        latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
+        id=USER_SECRET_ID,
+        label=SYSTEM_USER_SECRET_LABEL,
+    )
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+        secrets=[internal_secret, user_secret],
+    )
+
+    # When
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials"
+    ) as patched_creds_rotation:
+        out = polaris_context.run(polaris_context.on.secret_changed(user_secret), state)
+
+    # Then
+    assert patched_creds_rotation.called
+    assert len(out.deferred) == 0
+
+    relation = out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "3"
+    assert relation.local_app_data.get("metastore-bootstrapped") == "true"
+
+
+def test_config_changed_applies_password_update_after_bootstrap(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={
+            "shared-key": "shared-key-value",
+            "epoch": "2",
+            "metastore_bootstrapped": "false",
+        },
+    )
+    internal_secret = Secret(
+        {"charmed-operator-password": USER_PASSWORD},
+        label=INTERNAL_SYSTEM_USER_SECRET_LABEL,
+        owner="app",
+    )
+    user_secret = Secret(
+        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        id=USER_SECRET_ID,
+    )
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+        secrets=[internal_secret, user_secret],
+    )
+
+    # When
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials"
+    ) as patched_creds_rotation:
+        out = polaris_context.run(polaris_context.on.config_changed(), state)
+
+    # Then
+    assert patched_creds_rotation.called
+    assert len(out.deferred) == 0
+
+    relation = out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "3"
+    assert relation.local_app_data.get("metastore-bootstrapped") == "true"
+
+
+def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    # Scenario state uses the Python field name here; the peer databag is serialized with dashes.
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={
+            "shared-key": "shared-key-value",
+            "epoch": "2",
+            "metastore_bootstrapped": "true",
+        },
+    )
+    internal_secret = Secret(
+        {"charmed-operator-password": USER_PASSWORD},
+        label=INTERNAL_SYSTEM_USER_SECRET_LABEL,
+        owner="app",
+    )
+    user_secret = Secret(
+        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        id=USER_SECRET_ID,
+    )
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+        secrets=[internal_secret, user_secret],
+    )
+
+    # When the rotation fails, the effective password must remain unchanged
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials",
+        side_effect=Exception("boom"),
+    ) as patched_creds_rotation:
+        failed_out = polaris_context.run(polaris_context.on.config_changed(), state)
+
+    # Then
+    assert patched_creds_rotation.called
+    relation = failed_out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "2"
+    assert (
+        failed_out.unit_status.message
+        == CharmStatuses.PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE.message
+    )
+
+    # When the next event comes in, the rotation is retried
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials"
+    ) as patched_creds_rotation_retry:
+        out = polaris_context.run(polaris_context.on.update_status(), failed_out)
+
+    # Then
+    assert patched_creds_rotation_retry.called
+    relation = out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "3"
+    config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
+    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+
+
+def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={
+            "shared-key": "shared-key-value",
+            "epoch": "2",
+            "metastore_bootstrapped": "false",
+        },
+    )
+    internal_secret = Secret(
+        {"charmed-operator-password": USER_PASSWORD},
+        label=INTERNAL_SYSTEM_USER_SECRET_LABEL,
+        owner="app",
+    )
+    user_secret = Secret(
+        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        id=USER_SECRET_ID,
+        label=SYSTEM_USER_SECRET_LABEL,
+    )
+    initial_state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+        secrets=[internal_secret, user_secret],
+    )
+
+    # When
+    with (
+        patch(
+            "managers.polaris.PolarisManager.reset_root_principal_credentials"
+        ) as patched_creds_rotation,
+        patch(
+            "core.workload.polaris.PolarisWorkload.bootstrap_metastore",
+            side_effect=ops.pebble.ExecError(command=[], exit_code=1, stdout="", stderr="boom"),
+        ),
+    ):
+        out = polaris_context.run(polaris_context.on.config_changed(), initial_state)
+
+    # Then
+    assert not patched_creds_rotation.called
+    assert len(out.deferred) == 1
+    assert out.deferred[0].name == "config_changed"
+    assert out.deferred[0].observer == "_on_update"
+    relation = out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "2"
+    assert not relation.local_app_data.get("metastore-bootstrapped")
+    assert (
+        out.unit_status.message == CharmStatuses.PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE.message
+    )
+
+
+def test_leader_retries_bootstrap_when_metastore_already_marked_bootstrapped(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={"metastore_bootstrapped": "true"},
+    )
+    state = State(
+        config={},
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+    )
+
+    # When
+    with patch(
+        "core.workload.polaris.PolarisWorkload.bootstrap_metastore"
+    ) as patched_bootstrap_metastore:
+        polaris_context.run(polaris_context.on.config_changed(), state)
+
+    # Then
+    assert patched_bootstrap_metastore.called
+
+
+def test_metastore_relation_broken_clears_bootstrap_state_and_stops_workload(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={"metastore_bootstrapped": "true"},
+    )
+    state = State(
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.relation_broken(metastore_relation), state)
+
+    # Then
+    relation = out.get_relation(polaris_peers_relation)
+    # Raw peer databag keys are dash-separated, unlike the Python field name above.
+    assert not relation.local_app_data.get("metastore-bootstrapped")
+
+    container = out.get_container(polaris_container.name)
+    service = container.service_statuses[POLARIS_SERVICE_NAME]
+    assert service == ServiceStatus.INACTIVE
+
+
+def test_metastore_update_defers_when_workload_not_ready(
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    polaris_container = Container(
+        name=POLARIS_CONTAINER_NAME,
+        can_connect=False,
+        mounts={"polaris": Mount(location="/etc/polaris", source=tmp_path)},
+        service_statuses={POLARIS_SERVICE_NAME: ServiceStatus.ACTIVE},
+    )
+    state = State(
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.relation_changed(metastore_relation), state)
+
+    # Then
+    assert len(out.deferred) == 1
+    assert out.deferred[0].name == "database_created"
+    assert out.deferred[0].observer == "_on_update"
+
+
+def test_metastore_update_skips_when_metastore_not_ready(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    metastore_relation = replace(metastore_relation, remote_app_data={})
+    state = State(
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+    )
+
+    # When
+    with patch("managers.polaris.PolarisManager.update") as patched_update:
+        out = polaris_context.run(polaris_context.on.relation_changed(metastore_relation), state)
+
+    # Then
+    assert not patched_update.called
+    assert len(out.deferred) == 0
 
 
 def test_configured_system_user_secret_not_found_sets_blocked_status(

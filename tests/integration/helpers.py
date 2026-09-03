@@ -6,6 +6,7 @@
 from argparse import Namespace
 from pathlib import Path
 from typing import TypedDict
+from urllib.parse import urlparse
 
 import jubilant
 import yaml
@@ -82,17 +83,20 @@ def polaris_api_client(
     header: str = DEFAULT_HEADER,
 ) -> ApiClient:
     """Build an authenticated Apache Polaris management API client."""
+    parsed = urlparse(base_url)
     options = Namespace(
         proxy=None,
         access_token=None,
         profile=None,
-        base_url=base_url,
-        host=None,
-        port=None,
+        base_url=None,
+        catalog_url=None,
+        host=parsed.hostname,
+        port=parsed.port,
         client_id=client_id,
         client_secret=client_secret,
         realm=realm,
         header=header,
+        scheme=parsed.scheme,
     )
     return ApiClientBuilder(options).get_api_client()
 
