@@ -443,6 +443,71 @@ def test_config_changed_applies_password_update_after_bootstrap(
     assert relation.local_app_data.get("metastore-bootstrapped") == "true"
 
 
+def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    # Scenario state uses the Python field name here; the peer databag is serialized with dashes.
+    polaris_peers_relation = replace(
+        polaris_peers_relation,
+        local_app_data={
+            "shared-key": "shared-key-value",
+            "epoch": "2",
+            "metastore_bootstrapped": "true",
+        },
+    )
+    internal_secret = Secret(
+        {"charmed-operator-password": USER_PASSWORD},
+        label=INTERNAL_SYSTEM_USER_SECRET_LABEL,
+        owner="app",
+    )
+    user_secret = Secret(
+        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        id=USER_SECRET_ID,
+    )
+    state = State(
+        config={"system-user": USER_SECRET_ID},
+        leader=True,
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+        containers=[polaris_container],
+        secrets=[internal_secret, user_secret],
+    )
+
+    # When the rotation fails, the effective password must remain unchanged
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials",
+        side_effect=Exception("boom"),
+    ) as patched_creds_rotation:
+        failed_out = polaris_context.run(polaris_context.on.config_changed(), state)
+
+    # Then
+    assert patched_creds_rotation.called
+    relation = failed_out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "2"
+    assert (
+        failed_out.unit_status.message
+        == CharmStatuses.PENDING_ROOT_PRINCIPAL_CREDENTIALS_UPDATE.message
+    )
+
+    # When the next event comes in, the rotation is retried
+    with patch(
+        "managers.polaris.PolarisManager.reset_root_principal_credentials"
+    ) as patched_creds_rotation_retry:
+        out = polaris_context.run(polaris_context.on.update_status(), failed_out)
+
+    # Then
+    assert patched_creds_rotation_retry.called
+    relation = out.get_relation(polaris_peers_relation)
+    assert relation.local_app_data.get("epoch") == "3"
+    config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
+    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+
+
 def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
