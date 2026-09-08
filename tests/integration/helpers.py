@@ -17,9 +17,9 @@ from apache_polaris.sdk.management.api import PolarisDefaultApi
 
 from core.constants import (
     ADMIN_USER,
+    CONSOLE_PORT,
     PEERS_RELATION_NAME,
     REALM,
-    REST_PORT,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 
@@ -47,7 +47,7 @@ S3Info = TypedDict(
 def polaris_base_url(
     juju: jubilant.Juju,
     app: str = APP_NAME,
-    port: int = REST_PORT,
+    port: int = CONSOLE_PORT,
 ) -> str:
     """Return the base URL for the Polaris REST API."""
     status = juju.status()
