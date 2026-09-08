@@ -22,10 +22,12 @@ from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtoc
 from data_platform_helpers.advanced_statuses.types import Scope
 
 from core.constants import (
+    CONSOLE_CONTAINER_NAME,
     MONITORING_PORT,
     POLARIS_CONTAINER_NAME,
 )
 from core.context import Context
+from core.workload.console import ConsoleWorkload
 from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreEvents
 from events.polaris import CharmStatuses, PolarisEvents
@@ -38,16 +40,26 @@ logger = logging.getLogger(__name__)
 class PolarisWorkloadStatus(ManagerStatusProtocol):
     """Report generic low-priority Polaris workload statuses."""
 
-    def __init__(self, context: Context, polaris_workload: PolarisWorkload) -> None:
+    def __init__(
+        self,
+        context: Context,
+        polaris_workload: PolarisWorkload,
+        console_workload: ConsoleWorkload,
+    ) -> None:
         self.name = "polaris-workload"
         self.state = context
         self.polaris_workload = polaris_workload
+        self.console_workload = console_workload
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return low-priority workload statuses."""
+        statuses: list[StatusObject] = []
         if not self.polaris_workload.active:
-            return [CharmStatuses.NOT_RUNNING]
-        return []
+            statuses.append(CharmStatuses.POLARIS_NOT_RUNNING)
+
+        if not self.console_workload.active:
+            statuses.append(CharmStatuses.CONSOLE_NOT_RUNNING)
+        return statuses
 
 
 class PolarisK8sCharm(ops.CharmBase):
@@ -60,16 +72,22 @@ class PolarisK8sCharm(ops.CharmBase):
         self.polaris_workload = PolarisWorkload(
             container=self.unit.get_container(POLARIS_CONTAINER_NAME),
         )
-        # TODO(console): Add console_workload
+        self.console_workload = ConsoleWorkload(
+            container=self.unit.get_container(CONSOLE_CONTAINER_NAME),
+        )
 
         # Context
         self.context = Context(self)
 
         # Events
-        self.polaris_events = PolarisEvents(self, self.context, self.polaris_workload)
+        self.polaris_events = PolarisEvents(
+            self, self.context, self.polaris_workload, self.console_workload
+        )
         self.metastore_events = MetastoreEvents(self, self.context, self.polaris_workload)
         self.s3_events = S3Events(cast(CharmWithStatus, self), self.context, self.polaris_workload)
-        self.polaris_workload_status = PolarisWorkloadStatus(self.context, self.polaris_workload)
+        self.polaris_workload_status = PolarisWorkloadStatus(
+            self.context, self.polaris_workload, self.console_workload
+        )
 
         self.status = StatusHandler(
             self,

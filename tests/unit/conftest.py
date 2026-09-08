@@ -9,6 +9,8 @@ from ops.testing import Container, Context, Exec, Model, Mount, PeerRelation, Re
 
 from charm import PolarisK8sCharm
 from core.constants import (
+    CONSOLE_CONTAINER_NAME,
+    CONSOLE_SERVICE_NAME,
     METASTORE_RELATION_NAME,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
@@ -62,6 +64,29 @@ def polaris_container(tmp_path: Path) -> Container:
                                     f"file://{POLARIS_APPLICATION_PROPERTIES}"
                                 )
                             },
+                        }
+                    }
+                }
+            )
+        },
+    )
+
+
+@pytest.fixture
+def console_container(tmp_path: Path) -> Container:
+    """Provide fixture for the Polaris workload container."""
+    return Container(
+        name=CONSOLE_CONTAINER_NAME,
+        can_connect=True,
+        service_statuses={CONSOLE_SERVICE_NAME: ServiceStatus.ACTIVE},
+        layers={
+            CONSOLE_SERVICE_NAME: Layer(
+                {
+                    "services": {
+                        CONSOLE_SERVICE_NAME: {
+                            "override": "merge",
+                            "startup": "enabled",
+                            "on-failure": "restart",
                         }
                     }
                 }

@@ -99,7 +99,7 @@ class PolarisManager(WithLogging):
                 ),
             )
         )
-        should_restart = force_restart or config_changed
+        should_restart = force_restart or config_changed or not self.workload.active
 
         # The bootstrap command is idempotent from 1.7.0, so the leader can just run it
         # every time. We get two main benefits from doing that:

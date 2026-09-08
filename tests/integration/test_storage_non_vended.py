@@ -58,7 +58,11 @@ def test_deploy(
     logger.info("Waiting for Polaris to block before mandatory integrations are related...")
 
     juju.deploy(**s3.to_dict())
-    ca_chain = base64.b64encode(Path(s3_credentials["ca_bundle_path"]).read_bytes()).decode()
+    ca_chain = (
+        base64.b64encode(Path(s3_credentials["ca_bundle_path"]).read_bytes()).decode()
+        if s3_credentials["ca_bundle_path"]
+        else ""
+    )
     juju.config(
         s3.app,
         {
