@@ -32,8 +32,8 @@ resources:
   polaris-image:
     type: oci-image
     description: OCI image for Polaris, both server and admin tool.
-    # Polaris 1.6.0 - 2026-07-29
-    upstream-source: ghcr.io/canonical/charmed-polaris@sha256:d9ceec7a17c57afe21eb9e14f0d4ce7674354fa22db12b26cfc7f6a2f9cfed18
+    # Polaris 1.7.0 - 2026-08-28
+    upstream-source: ghcr.io/canonical/charmed-polaris@sha256:677e2e0adcaec954d0e48df0d9d6b7e6523b529d82f679645a68af91537192c5
     uid: 584792
     gid: 584792
 

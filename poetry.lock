@@ -239,13 +239,13 @@ trio = ["trio (>=0.32.0)"]
 
 [[package]]
 name = "apache-polaris"
-version = "1.6.0"
+version = "1.7.0"
 description = "Apache Polaris"
 optional = false
 python-versions = "<3.15,>=3.10"
 groups = ["main"]
 files = [
-    {file = "apache_polaris-1.6.0-py3-none-any.whl", hash = "sha256:a0cc7f0e904b91f8981f354891e41691c3a352edbf989b04c6d91e6d34b7d985"},
+    {file = "apache_polaris-1.7.0-py3-none-any.whl", hash = "sha256:c589d05f73025b2999105a129d4eafc0b3a6e6f046ac83f66b66f2e288ff032e"},
 ]
 
 [package.dependencies]
@@ -3368,4 +3368,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "03ebb27065875f5834dddefafc25b7b728d1f8c22611c6fe96fd0a8888bea9f2"
+content-hash = "dcfba1ee242ebd74cc598629af93c948b3febcd11aa7e5b4dacf24bdcaf5c4f8"
