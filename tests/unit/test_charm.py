@@ -8,7 +8,7 @@ from unittest.mock import patch
 import ops
 import yaml
 from ops.pebble import ServiceStatus
-from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secret, State
+from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secret, State, TCPPort
 
 from charm import PolarisK8sCharm
 from core.constants import (
@@ -25,6 +25,7 @@ from core.models import REQUIRED_S3_PARAMETERS
 from events.metastore import MetastoreStatuses
 from events.polaris import SYSTEM_USER_SECRET_LABEL, CharmStatuses
 from events.s3 import ObjectStorageStatuses
+from events.tls import TLSStatuses
 
 CONFIG = yaml.safe_load(Path("./config.yaml").read_text())
 ACTIONS = yaml.safe_load(Path("./actions.yaml").read_text())
@@ -777,6 +778,59 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
 
     # Then
     assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_INVALID.message
+
+
+def test_tls_relation_without_certificate_sets_waiting_status(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    client_certificates_relation: Relation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[
+            polaris_peers_relation,
+            client_certificates_relation,
+            metastore_relation,
+            s3_relation,
+        ],
+    )
+
+    # When
+    out = polaris_context.run(
+        polaris_context.on.relation_created(client_certificates_relation),
+        state,
+    )
+
+    # Then
+    assert out.unit_status.message == TLSStatuses.TLS_CERTIFICATE_NOT_READY.message
+
+
+def test_console_pebble_ready_keeps_http_port_open(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.pebble_ready(console_container), state)
+
+    # Then
+    assert out.opened_ports == frozenset({TCPPort(8080)})
 
 
 def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed(

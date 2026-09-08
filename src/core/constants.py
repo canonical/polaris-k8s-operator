@@ -25,12 +25,15 @@ OBJECT_STORAGE_CERTIFICATE = "/etc/polaris/object-storage-ca.pem"
 OBJECT_STORAGE_TRUSTSTORE = "/etc/polaris/object-storage-truststore.jks"
 SYMMETRIC_KEY = "/etc/polaris/symmetric.key"
 ROCK_METADATA = "/.rock/metadata.yaml"
+CONSOLE_TLS_CERTIFICATE = "/etc/nginx/tls/tls.crt"
+CONSOLE_TLS_PRIVATE_KEY = "/etc/nginx/tls/tls.key"
 
 # Relation names
 METASTORE_RELATION_NAME = "metastore"
 PEERS_RELATION_NAME = "polaris-peers"
 S3_RELATION_NAME = "s3-credentials"
 STATUS_RELATION_NAME = "status-peers"
+TLS_RELATION_NAME = "client-certificates"
 
 # Misc.
 ADMIN_USER = "charmed-operator"

@@ -22,6 +22,7 @@ from core.constants import (
     PEERS_RELATION_NAME,
     S3_RELATION_NAME,
     STATUS_RELATION_NAME,
+    TLS_RELATION_NAME,
 )
 from core.logging import WithLogging
 from core.models import (
@@ -118,6 +119,11 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         if not hasattr(self, "_s3_requirer"):
             return S3Storage({})
         return S3Storage(self._s3_requirer.get_storage_connection_info(self.s3_relation))
+
+    @property
+    def tls_relation(self) -> ops.model.Relation | None:
+        """Get the TLS relation."""
+        return self.model.get_relation(TLS_RELATION_NAME)
 
     @property
     def unit_server(self) -> PolarisServer:

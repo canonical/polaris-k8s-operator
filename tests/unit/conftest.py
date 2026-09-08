@@ -18,6 +18,7 @@ from core.constants import (
     POLARIS_CONTAINER_NAME,
     POLARIS_SERVICE_NAME,
     S3_RELATION_NAME,
+    TLS_RELATION_NAME,
 )
 
 
@@ -92,6 +93,15 @@ def console_container(tmp_path: Path) -> Container:
                 }
             )
         },
+    )
+
+
+@pytest.fixture
+def client_certificates_relation() -> Relation:
+    return Relation(
+        endpoint=TLS_RELATION_NAME,
+        interface="tls-certificates",
+        remote_app_name="self-signed-certificates",
     )
 
 

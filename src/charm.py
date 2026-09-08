@@ -32,6 +32,7 @@ from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreEvents
 from events.polaris import CharmStatuses, PolarisEvents
 from events.s3 import S3Events
+from events.tls import TLSEvents
 from protocols import CharmWithStatus
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ class PolarisK8sCharm(ops.CharmBase):
         )
         self.metastore_events = MetastoreEvents(self, self.context, self.polaris_workload)
         self.s3_events = S3Events(cast(CharmWithStatus, self), self.context, self.polaris_workload)
+        self.tls_events = TLSEvents(self, self.context, self.console_workload)
         self.polaris_workload_status = PolarisWorkloadStatus(
             self.context, self.polaris_workload, self.console_workload
         )
@@ -94,6 +96,7 @@ class PolarisK8sCharm(ops.CharmBase):
             self.polaris_events,
             self.metastore_events,
             self.s3_events,
+            self.tls_events,
             self.polaris_workload_status,
         )
 

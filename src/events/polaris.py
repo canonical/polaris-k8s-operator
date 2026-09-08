@@ -17,7 +17,6 @@ from config.charm import PolarisCharmConfig
 from core.constants import (
     ADMIN_USER,
     CONSOLE_CONTAINER_NAME,
-    CONSOLE_PORT,
     PEERS_RELATION_NAME,
     POLARIS_CONTAINER_NAME,
     RANDOM_KEY_SIZE,
@@ -134,7 +133,6 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         )
         self.console_manager = ConsoleManager(self.context, self.console_workload)
 
-        self.framework.observe(self.charm.on.start, self._on_start)
         self.framework.observe(self.charm.on.config_changed, self._on_update)
         self.framework.observe(self.charm.on.update_status, self._on_update)
         self.framework.observe(self.charm.on.leader_elected, self._on_leader_elected)
@@ -156,11 +154,6 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         )
 
         self.framework.observe(self.charm.on.secret_changed, self._on_secret_changed)
-
-    def _on_start(self, event: ops.StartEvent) -> None:
-        """Handle the start event."""
-        # TODO: Change based on TLS
-        self.charm.unit.set_ports(CONSOLE_PORT)
 
     def _configured_system_user_secret_id(self) -> str | None:
         """Return configured system-user secret id, if any."""
