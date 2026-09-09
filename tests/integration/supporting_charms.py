@@ -51,3 +51,16 @@ S3: CharmVersion = {
     "amd64": SingleVariantCharmVersion(charm="s3-integrator", channel="2/stable", app="s3"),
     "arm64": SingleVariantCharmVersion(charm="s3-integrator", channel="2/stable", app="s3"),
 }
+
+TLSProvider: CharmVersion = {
+    "amd64": SingleVariantCharmVersion(
+        charm="self-signed-certificates",
+        channel="1/stable",
+        app="self-signed-certificates",
+    ),
+    "arm64": SingleVariantCharmVersion(
+        charm="self-signed-certificates",
+        channel="1/stable",
+        app="self-signed-certificates",
+    ),
+}

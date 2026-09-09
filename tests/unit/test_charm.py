@@ -3,16 +3,20 @@
 
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import ops
 import yaml
 from ops.pebble import ServiceStatus
-from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secret, State
+from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secret, State, TCPPort
 
 from charm import PolarisK8sCharm
 from core.constants import (
     ADMIN_USER,
+    CONSOLE_PORT,
+    CONSOLE_TLS_CERTIFICATE,
+    CONSOLE_TLS_PORT,
+    CONSOLE_TLS_PRIVATE_KEY,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_CONTAINER_NAME,
@@ -25,6 +29,7 @@ from core.models import REQUIRED_S3_PARAMETERS
 from events.metastore import MetastoreStatuses
 from events.polaris import SYSTEM_USER_SECRET_LABEL, CharmStatuses
 from events.s3 import ObjectStorageStatuses
+from events.tls import TLSStatuses
 
 CONFIG = yaml.safe_load(Path("./config.yaml").read_text())
 ACTIONS = yaml.safe_load(Path("./actions.yaml").read_text())
@@ -46,6 +51,7 @@ def _bootstrap_credentials_line(config: str) -> str:
 
 
 def test_start_polaris_missing_metastore_relation(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -54,8 +60,8 @@ def test_start_polaris_missing_metastore_relation(
     # Given
     state = State(
         config={},
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -66,6 +72,7 @@ def test_start_polaris_missing_metastore_relation(
 
 
 def test_start_polaris_missing_object_storage(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -74,7 +81,7 @@ def test_start_polaris_missing_object_storage(
     # Given
     state = State(
         config={},
-        containers=[polaris_container],
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation],
     )
 
@@ -86,6 +93,7 @@ def test_start_polaris_missing_object_storage(
 
 
 def test_polaris_missing_metastore_data(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -96,7 +104,7 @@ def test_polaris_missing_metastore_data(
     metastore_relation = replace(metastore_relation, remote_app_data={})
     state = State(
         config={},
-        containers=[polaris_container],
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
     )
 
@@ -108,6 +116,7 @@ def test_polaris_missing_metastore_data(
 
 
 def test_polaris_missing_object_storage_data(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -118,7 +127,7 @@ def test_polaris_missing_object_storage_data(
     s3_relation = replace(s3_relation, remote_app_data={})
     state = State(
         config={},
-        containers=[polaris_container],
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
     )
 
@@ -133,6 +142,7 @@ def test_polaris_missing_object_storage_data(
 
 
 def test_polaris_missing_region_s3(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -161,7 +171,7 @@ def test_polaris_missing_region_s3(
     )
     state = State(
         config={},
-        containers=[polaris_container],
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
     )
 
@@ -174,6 +184,7 @@ def test_polaris_missing_region_s3(
 
 
 def test_bare_leader_deployment_writes_config_with_random_password(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -185,8 +196,8 @@ def test_bare_leader_deployment_writes_config_with_random_password(
     state = State(
         config={},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -211,6 +222,7 @@ def test_bare_leader_deployment_writes_config_with_random_password(
 
 
 def test_config_changed_uses_configured_system_user_secret(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -226,8 +238,8 @@ def test_config_changed_uses_configured_system_user_secret(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[user_secret],
     )
 
@@ -245,6 +257,7 @@ def test_config_changed_uses_configured_system_user_secret(
 
 
 def test_config_changed_switches_from_random_password_to_user_secret(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -256,8 +269,8 @@ def test_config_changed_switches_from_random_password_to_user_secret(
     initial_state = State(
         config={},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
     initial_out = polaris_context.run(
         polaris_context.on.pebble_ready(polaris_container),
@@ -298,6 +311,7 @@ def test_config_changed_switches_from_random_password_to_user_secret(
 
 
 def test_secret_changed_updates_leader_config_and_epoch(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -323,8 +337,8 @@ def test_secret_changed_updates_leader_config_and_epoch(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[internal_secret, user_secret],
     )
 
@@ -346,6 +360,7 @@ def test_secret_changed_updates_leader_config_and_epoch(
 
 
 def test_secret_changed_applies_password_update_after_bootstrap(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -375,8 +390,8 @@ def test_secret_changed_applies_password_update_after_bootstrap(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[internal_secret, user_secret],
     )
 
@@ -396,6 +411,7 @@ def test_secret_changed_applies_password_update_after_bootstrap(
 
 
 def test_config_changed_applies_password_update_after_bootstrap(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -423,8 +439,8 @@ def test_config_changed_applies_password_update_after_bootstrap(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[internal_secret, user_secret],
     )
 
@@ -444,6 +460,7 @@ def test_config_changed_applies_password_update_after_bootstrap(
 
 
 def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -473,8 +490,8 @@ def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[internal_secret, user_secret],
     )
 
@@ -509,6 +526,7 @@ def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
 
 
 def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -537,8 +555,8 @@ def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
     initial_state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[internal_secret, user_secret],
     )
 
@@ -568,6 +586,7 @@ def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
 
 
 def test_leader_retries_bootstrap_when_metastore_already_marked_bootstrapped(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -582,8 +601,8 @@ def test_leader_retries_bootstrap_when_metastore_already_marked_bootstrapped(
     state = State(
         config={},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -597,6 +616,7 @@ def test_leader_retries_bootstrap_when_metastore_already_marked_bootstrapped(
 
 
 def test_metastore_relation_broken_clears_bootstrap_state_and_stops_workload(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -610,8 +630,8 @@ def test_metastore_relation_broken_clears_bootstrap_state_and_stops_workload(
     )
     state = State(
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -628,6 +648,7 @@ def test_metastore_relation_broken_clears_bootstrap_state_and_stops_workload(
 
 
 def test_metastore_update_defers_when_workload_not_ready(
+    console_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
     metastore_relation: Relation,
@@ -643,8 +664,8 @@ def test_metastore_update_defers_when_workload_not_ready(
     )
     state = State(
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -657,6 +678,7 @@ def test_metastore_update_defers_when_workload_not_ready(
 
 
 def test_metastore_update_skips_when_metastore_not_ready(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -667,8 +689,8 @@ def test_metastore_update_skips_when_metastore_not_ready(
     metastore_relation = replace(metastore_relation, remote_app_data={})
     state = State(
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -681,6 +703,7 @@ def test_metastore_update_skips_when_metastore_not_ready(
 
 
 def test_configured_system_user_secret_not_found_sets_blocked_status(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -691,8 +714,8 @@ def test_configured_system_user_secret_not_found_sets_blocked_status(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -703,6 +726,7 @@ def test_configured_system_user_secret_not_found_sets_blocked_status(
 
 
 def test_configured_system_user_secret_without_grant_sets_blocked_status(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -713,8 +737,8 @@ def test_configured_system_user_secret_without_grant_sets_blocked_status(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
     )
 
     # When
@@ -733,6 +757,7 @@ def test_configured_system_user_secret_without_grant_sets_blocked_status(
 
 
 def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     polaris_peers_relation: PeerRelation,
@@ -747,8 +772,8 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
     state = State(
         config={"system-user": USER_SECRET_ID},
         leader=True,
+        containers=[polaris_container, console_container],
         relations=[polaris_peers_relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[user_secret],
     )
 
@@ -759,7 +784,144 @@ def test_configured_system_user_secret_with_invalid_content_sets_blocked_status(
     assert out.unit_status.message == CharmStatuses.SYSTEM_USER_SECRET_INVALID.message
 
 
+def test_tls_relation_without_certificate_sets_waiting_status(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    client_certificates_relation: Relation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[
+            polaris_peers_relation,
+            client_certificates_relation,
+            metastore_relation,
+            s3_relation,
+        ],
+    )
+
+    # When
+    out = polaris_context.run(
+        polaris_context.on.relation_created(client_certificates_relation),
+        state,
+    )
+
+    # Then
+    assert out.unit_status.message == TLSStatuses.TLS_CERTIFICATE_NOT_READY.message
+
+
+def test_console_pebble_ready_keeps_http_port_open(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+
+    # When
+    out = polaris_context.run(polaris_context.on.pebble_ready(console_container), state)
+
+    # Then
+    assert out.opened_ports == frozenset({TCPPort(CONSOLE_PORT)})
+
+
+def test_tls_relation_with_certificate_writes_console_tls_assets(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    client_certificates_relation: Relation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[
+            polaris_peers_relation,
+            client_certificates_relation,
+            metastore_relation,
+            s3_relation,
+        ],
+    )
+
+    # When
+    with (
+        patch("core.models.ConsoleTLS.ready", new_callable=PropertyMock, return_value=True),
+        patch(
+            "core.models.ConsoleTLS.certificate",
+            new_callable=PropertyMock,
+            return_value="certificate-pem",
+        ),
+        patch(
+            "core.models.ConsoleTLS.private_key",
+            new_callable=PropertyMock,
+            return_value="private-key-pem",
+        ),
+    ):
+        out = polaris_context.run(
+            polaris_context.on.relation_created(client_certificates_relation),
+            state,
+        )
+
+    # Then
+    assert out.opened_ports == frozenset({TCPPort(CONSOLE_TLS_PORT)})
+    assert (tmp_path / Path(CONSOLE_TLS_CERTIFICATE).name).read_text() == "certificate-pem"
+    assert (tmp_path / Path(CONSOLE_TLS_PRIVATE_KEY).name).read_text() == "private-key-pem"
+
+
+def test_tls_relation_broken_removes_console_tls_assets(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    client_certificates_relation: Relation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    (tmp_path / Path(CONSOLE_TLS_CERTIFICATE).name).write_text("certificate-pem")
+    (tmp_path / Path(CONSOLE_TLS_PRIVATE_KEY).name).write_text("private-key-pem")
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[
+            polaris_peers_relation,
+            client_certificates_relation,
+            metastore_relation,
+            s3_relation,
+        ],
+    )
+
+    # When
+    out = polaris_context.run(
+        polaris_context.on.relation_broken(client_certificates_relation),
+        state,
+    )
+
+    # Then
+    assert out.opened_ports == frozenset({TCPPort(CONSOLE_PORT)})
+    assert not (tmp_path / Path(CONSOLE_TLS_CERTIFICATE).name).exists()
+    assert not (tmp_path / Path(CONSOLE_TLS_PRIVATE_KEY).name).exists()
+
+
 def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed(
+    console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
     metastore_relation: Relation,
@@ -784,8 +946,8 @@ def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed
     state = State(
         config={},
         leader=False,
+        containers=[polaris_container, console_container],
         relations=[relation, metastore_relation, s3_relation],
-        containers=[polaris_container],
         secrets=[internal_secret],
     )
 

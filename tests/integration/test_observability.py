@@ -86,7 +86,10 @@ def test_deploy(
     s3_credentials: S3Info,
 ) -> None:
     """Deploy Polaris with metastore and object storage integrations."""
-    resources = {"polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"]}
+    resources = {
+        "polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"],
+        "polaris-console-image": METADATA["resources"]["polaris-console-image"]["upstream-source"],
+    }
     juju.deploy(polaris_charm, app=APP_NAME, resources=resources)
 
     juju.deploy(**s3.to_dict())

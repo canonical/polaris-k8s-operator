@@ -1,7 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-summary: Run integration-storage-non-vended tests
+summary: Run integration-tls tests
 
 prepare: |
   # The setup here consists in
@@ -54,4 +54,4 @@ prepare: |
 
 execute: |
   cd "$SPREAD_PATH"
-  tox run -e integration-storage-non-vended -- --model testing --keep-models
+  tox run -e integration-tls -- --model testing --keep-models

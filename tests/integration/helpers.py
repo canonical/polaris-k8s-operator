@@ -8,18 +8,20 @@ from pathlib import Path
 from typing import TypedDict
 from urllib.parse import urlparse
 
+import httpx2
 import jubilant
 import yaml
 from apache_polaris.cli.api_client_builder import ApiClientBuilder
 from apache_polaris.cli.constants import DEFAULT_HEADER
-from apache_polaris.sdk.management import ApiClient
+from apache_polaris.sdk.management import ApiClient, Configuration, rest
 from apache_polaris.sdk.management.api import PolarisDefaultApi
 
 from core.constants import (
     ADMIN_USER,
+    CONSOLE_PORT,
+    CONSOLE_TLS_PORT,
     PEERS_RELATION_NAME,
     REALM,
-    REST_PORT,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 
@@ -47,7 +49,7 @@ S3Info = TypedDict(
 def polaris_base_url(
     juju: jubilant.Juju,
     app: str = APP_NAME,
-    port: int = REST_PORT,
+    port: int = CONSOLE_PORT,
 ) -> str:
     """Return the base URL for the Polaris REST API."""
     status = juju.status()
@@ -57,7 +59,8 @@ def polaris_base_url(
         # Fallback to the first unit address if Juju does not expose an app address.
         address = next(iter(status.apps[app].units.values())).address
 
-    return f"http://{address}:{port}"
+    scheme = "https" if port == CONSOLE_TLS_PORT else "http"
+    return f"{scheme}://{address}:{port}"
 
 
 def internal_user_secret_label(app: str = APP_NAME) -> str:
@@ -108,11 +111,44 @@ def polaris_management_api(
     client_id: str = ADMIN_USER,
     client_secret: str | None = None,
     realm: str = REALM,
+    port: int = CONSOLE_PORT,
+    verify_ssl: bool = True,
 ) -> PolarisDefaultApi:
     """Return an authenticated Polaris management API object."""
     password = client_secret or admin_password_from_internal_secret(juju, app)
+    base_url = polaris_base_url(juju, app, port=port)
+
+    if not verify_ssl:
+        # Note: unfortunately, the polaris sdk does not provide an easy way of
+        # disabling tls verification. Even with the verify_ssl=False configuration
+        # below, the initial request to get the authentication tokens still goes through
+        # tls verification, hence why we do it manually here.
+        response = httpx2.post(
+            f"{base_url}/api/catalog/v1/oauth/tokens",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": password,
+                "scope": "PRINCIPAL_ROLE:ALL",
+            },
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                DEFAULT_HEADER: realm,
+            },
+            verify=False,
+        )
+        response.raise_for_status()
+        configuration = Configuration(
+            host=f"{base_url}/api/management/v1",
+            access_token=response.json()["access_token"],
+        )
+        configuration.verify_ssl = False
+        api_client = ApiClient(configuration, header_name=DEFAULT_HEADER, header_value=realm)
+        api_client.rest_client = rest.RESTClientObject(api_client.configuration)
+        return PolarisDefaultApi(api_client)
+
     api_client = polaris_api_client(
-        polaris_base_url(juju, app),
+        base_url,
         client_id=client_id,
         client_secret=password,
         realm=realm,

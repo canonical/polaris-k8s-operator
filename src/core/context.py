@@ -3,7 +3,10 @@
 
 """Charm Context definition and parsing logic."""
 
+from __future__ import annotations
+
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 import ops
 from data_platform_helpers.advanced_statuses.components import StatusesState
@@ -13,7 +16,6 @@ from dpcharmlibs.interfaces import (
     OpsPeerRepositoryInterface,
     OpsPeerUnitRepositoryInterface,
 )
-from object_storage import S3Requirer
 from pydantic import ValidationError
 
 from config.charm import PolarisCharmConfig
@@ -22,9 +24,11 @@ from core.constants import (
     PEERS_RELATION_NAME,
     S3_RELATION_NAME,
     STATUS_RELATION_NAME,
+    TLS_RELATION_NAME,
 )
 from core.logging import WithLogging
 from core.models import (
+    ConsoleTLS,
     Metastore,
     PeerAppModel,
     PeerUnitModel,
@@ -33,12 +37,17 @@ from core.models import (
     S3Storage,
 )
 
+if TYPE_CHECKING:
+    from charmlibs.interfaces.tls_certificates import TLSCertificatesRequiresV4
+    from object_storage import S3Requirer
+
 
 class Context(ops.Object, WithLogging, StatusesStateProtocol):
     """Properties and relations of the charm."""
 
-    # This element is injected by the s3 event handler to avoid duplicated side-effects
+    # These elements are injected by integration event handlers to avoid duplicated side-effects
     _s3_requirer: S3Requirer
+    _tls_certificates_requirer: TLSCertificatesRequiresV4
 
     def __init__(self, charm: ops.CharmBase) -> None:
         super().__init__(charm, "charm_context")
@@ -118,6 +127,19 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         if not hasattr(self, "_s3_requirer"):
             return S3Storage({})
         return S3Storage(self._s3_requirer.get_storage_connection_info(self.s3_relation))
+
+    @property
+    def tls_relation(self) -> ops.model.Relation | None:
+        """Get the TLS relation."""
+        return self.model.get_relation(TLS_RELATION_NAME)
+
+    @property
+    def console_tls(self) -> ConsoleTLS:
+        """Get the console TLS integration state."""
+        return ConsoleTLS(
+            relation=self.tls_relation,
+            certificates_requirer=getattr(self, "_tls_certificates_requirer", None),
+        )
 
     @property
     def unit_server(self) -> PolarisServer:
