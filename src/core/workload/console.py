@@ -7,7 +7,7 @@ import ops.pebble
 from charmlibs import pathops
 from ops.model import Container
 
-from core.constants import CONSOLE_SERVICE_NAME
+from core.constants import CONSOLE_SERVICE_NAME, CONSOLE_TLS_CERTIFICATE, CONSOLE_TLS_PRIVATE_KEY
 from core.logging import WithLogging
 
 
@@ -45,6 +45,38 @@ class ConsoleWorkload(WithLogging):
             self.logger.debug(f"Service {CONSOLE_SERVICE_NAME} not running")
             return False
         return service.is_running()
+
+    def tls_assets_present(self) -> bool:
+        """Return whether both console TLS assets are present."""
+        return (self.fs / CONSOLE_TLS_CERTIFICATE).exists() and (
+            self.fs / CONSOLE_TLS_PRIVATE_KEY
+        ).exists()
+
+    def write_tls_assets(self, certificate: str, private_key: str) -> bool:
+        """Write console TLS certificate and private key.
+
+        Returns whether the local TLS asset contents changed.
+        """
+        certificate_changed = pathops.ensure_contents(
+            self.fs / CONSOLE_TLS_CERTIFICATE,
+            certificate,
+        )
+        private_key_changed = pathops.ensure_contents(
+            self.fs / CONSOLE_TLS_PRIVATE_KEY,
+            private_key,
+        )
+        return certificate_changed or private_key_changed
+
+    def remove_tls_assets(self) -> bool:
+        """Remove console TLS certificate and private key."""
+        removed = False
+        for path in (CONSOLE_TLS_CERTIFICATE, CONSOLE_TLS_PRIVATE_KEY):
+            try:
+                (self.fs / path).unlink()
+                removed = True
+            except FileNotFoundError:
+                continue
+        return removed
 
     def restart(self, environment: dict[str, str] | None = None) -> None:
         """Restart the workload service."""

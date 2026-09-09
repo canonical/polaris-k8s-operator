@@ -79,6 +79,7 @@ def console_container(tmp_path: Path) -> Container:
     return Container(
         name=CONSOLE_CONTAINER_NAME,
         can_connect=True,
+        mounts={"console-tls": Mount(location="/etc/nginx/tls", source=tmp_path)},
         service_statuses={CONSOLE_SERVICE_NAME: ServiceStatus.ACTIVE},
         layers={
             CONSOLE_SERVICE_NAME: Layer(

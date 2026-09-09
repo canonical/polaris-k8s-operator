@@ -3,9 +3,12 @@
 
 """Collection of state objects for the Polaris relations, apps and units."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Mapping
-from typing import Annotated, Any, final
+from functools import cached_property
+from typing import TYPE_CHECKING, Annotated, Any, final
 
 import ops
 from dpcharmlibs.interfaces import (
@@ -26,6 +29,13 @@ from core.constants import (
 REQUIRED_S3_PARAMETERS = ["access-key", "secret-key", "bucket", "endpoint", "region"]
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from charmlibs.interfaces.tls_certificates import (
+        PrivateKey,
+        ProviderCertificate,
+        TLSCertificatesRequiresV4,
+    )
 
 
 InternalUserSecret = Annotated[
@@ -149,6 +159,66 @@ class S3Storage:
     def has_custom_ca(self) -> bool:
         """Return whether object storage provides a custom CA chain."""
         return bool(self.tls_ca_chain)
+
+
+class ConsoleTLS:
+    """State collection for the console TLS integration."""
+
+    def __init__(
+        self,
+        relation: ops.model.Relation | None,
+        certificates_requirer: TLSCertificatesRequiresV4 | None,
+    ) -> None:
+        self._relation = relation
+        self._certificates_requirer = certificates_requirer
+
+    @property
+    def relation(self) -> ops.model.Relation | None:
+        """Return the client-certificates relation, if present."""
+        return self._relation
+
+    @cached_property
+    def _assigned_certificate_and_key(
+        self,
+    ) -> tuple[ProviderCertificate | None, PrivateKey | None]:
+        """Return the assigned console TLS certificate and private key objects."""
+        if not self._certificates_requirer:
+            return None, None
+
+        assigned_certificates, private_key = (
+            self._certificates_requirer.get_assigned_certificates()
+        )
+        if not assigned_certificates or not private_key:
+            return None, None
+
+        return assigned_certificates[0], private_key
+
+    @property
+    def ready(self) -> bool:
+        """Return whether console TLS material is available."""
+        certificate, private_key = self._assigned_certificate_and_key
+        return bool(certificate and private_key)
+
+    @property
+    def certificate(self) -> str:
+        """Return the console TLS certificate PEM, including chain if present."""
+        assigned_certificate, _ = self._assigned_certificate_and_key
+        if not assigned_certificate:
+            return ""
+
+        chain = "\n\n".join(str(certificate) for certificate in assigned_certificate.chain)
+        certificate = str(assigned_certificate.certificate)
+        if chain:
+            certificate = f"{certificate}\n\n{chain}"
+        return certificate
+
+    @property
+    def private_key(self) -> str:
+        """Return the console TLS private key PEM."""
+        _, private_key = self._assigned_certificate_and_key
+        if not private_key:
+            return ""
+        return str(private_key)
 
 
 class Metastore:

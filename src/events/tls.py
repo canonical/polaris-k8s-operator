@@ -15,10 +15,16 @@ from data_platform_helpers.advanced_statuses.models import StatusObject
 from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtocol
 from data_platform_helpers.advanced_statuses.types import Scope
 
-from core.constants import CONSOLE_CONTAINER_NAME, CONSOLE_PORT, TLS_RELATION_NAME
+from core.constants import (
+    CONSOLE_CONTAINER_NAME,
+    CONSOLE_PORT,
+    CONSOLE_TLS_PORT,
+    TLS_RELATION_NAME,
+)
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.console import ConsoleWorkload
+from managers.console import ConsoleManager
 from managers.tls import TLSManager
 
 
@@ -48,6 +54,7 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.charm = charm
         self.context = context
         self.console_workload = console_workload
+        self.console_manager = ConsoleManager(self.context, self.console_workload)
         self.tls_manager = TLSManager(context, charm.polaris_workload)  # type: ignore[attr-defined]
 
         self.certificates = TLSCertificatesRequiresV4(
@@ -55,6 +62,7 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             relationship_name=TLS_RELATION_NAME,
             certificate_requests=[self.tls_manager.build_console_certificate_request()],
         )
+        self.context._tls_certificates_requirer = self.certificates
 
         self.framework.observe(self.certificates.on.certificate_available, self._on_certificate)
         self.framework.observe(
@@ -89,7 +97,18 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Handle the client-certificates relation-broken event."""
-        self._reconcile(event)
+        if not self.context.cluster.relation:
+            self.logger.info("Peer relation not ready")
+            event.defer()
+            return
+
+        if not self.console_workload.ready:
+            self.logger.info("Console workload not ready")
+            event.defer()
+            return
+
+        self.console_manager.update()
+        self.charm.unit.set_ports(CONSOLE_PORT)
 
     def _reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile TLS relation data and current console exposure mode."""
@@ -105,7 +124,10 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        self.charm.unit.set_ports(CONSOLE_PORT)
+        self.console_manager.update()
+        console_tls = self.context.console_tls
+        port = CONSOLE_TLS_PORT if console_tls.ready else CONSOLE_PORT
+        self.charm.unit.set_ports(port)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return the list of statuses for this component."""

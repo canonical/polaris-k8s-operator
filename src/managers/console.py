@@ -15,12 +15,22 @@ class ConsoleManager(WithLogging):
         self.context = context
         self.workload = workload
 
-    def update(
-        self,
-        force_restart: bool = False,
-    ) -> None:
+    def update(self) -> None:
         """Update Polaris Console service and restart it."""
-        # TODO: handle TLS file writing
+        console_tls = self.context.console_tls
+        if console_tls.ready:
+            changed = self.workload.write_tls_assets(
+                console_tls.certificate,
+                console_tls.private_key,
+            )
+        else:
+            changed = self.workload.remove_tls_assets()
+
         if not self.workload.active:
             self.logger.warning("starting console")
             self.workload.start()
+            return
+
+        if changed:
+            self.logger.info("Restarting console to apply configuration changes")
+            self.workload.restart()

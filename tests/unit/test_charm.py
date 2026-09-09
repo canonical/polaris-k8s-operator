@@ -13,6 +13,10 @@ from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secre
 from charm import PolarisK8sCharm
 from core.constants import (
     ADMIN_USER,
+    CONSOLE_PORT,
+    CONSOLE_TLS_CERTIFICATE,
+    CONSOLE_TLS_PORT,
+    CONSOLE_TLS_PRIVATE_KEY,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_CONTAINER_NAME,
@@ -830,7 +834,81 @@ def test_console_pebble_ready_keeps_http_port_open(
     out = polaris_context.run(polaris_context.on.pebble_ready(console_container), state)
 
     # Then
-    assert out.opened_ports == frozenset({TCPPort(8080)})
+    assert out.opened_ports == frozenset({TCPPort(CONSOLE_PORT)})
+
+
+def test_tls_relation_with_certificate_writes_console_tls_assets(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    client_certificates_relation: Relation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[
+            polaris_peers_relation,
+            client_certificates_relation,
+            metastore_relation,
+            s3_relation,
+        ],
+    )
+
+    # When
+    with patch(
+        "managers.tls.TLSManager.get_console_tls_material",
+        return_value=("certificate-pem", "private-key-pem"),
+    ):
+        out = polaris_context.run(
+            polaris_context.on.relation_created(client_certificates_relation),
+            state,
+        )
+
+    # Then
+    assert out.opened_ports == frozenset({TCPPort(CONSOLE_TLS_PORT)})
+    assert (tmp_path / Path(CONSOLE_TLS_CERTIFICATE).name).read_text() == "certificate-pem"
+    assert (tmp_path / Path(CONSOLE_TLS_PRIVATE_KEY).name).read_text() == "private-key-pem"
+
+
+def test_tls_relation_broken_removes_console_tls_assets(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    client_certificates_relation: Relation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    tmp_path: Path,
+) -> None:
+    # Given
+    (tmp_path / Path(CONSOLE_TLS_CERTIFICATE).name).write_text("certificate-pem")
+    (tmp_path / Path(CONSOLE_TLS_PRIVATE_KEY).name).write_text("private-key-pem")
+    state = State(
+        leader=True,
+        containers=[polaris_container, console_container],
+        relations=[
+            polaris_peers_relation,
+            client_certificates_relation,
+            metastore_relation,
+            s3_relation,
+        ],
+    )
+
+    # When
+    out = polaris_context.run(
+        polaris_context.on.relation_broken(client_certificates_relation),
+        state,
+    )
+
+    # Then
+    assert out.opened_ports == frozenset({TCPPort(CONSOLE_PORT)})
+    assert not (tmp_path / Path(CONSOLE_TLS_CERTIFICATE).name).exists()
+    assert not (tmp_path / Path(CONSOLE_TLS_PRIVATE_KEY).name).exists()
 
 
 def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed(
