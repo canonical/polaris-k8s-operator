@@ -1,7 +1,6 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import base64
 import logging
 from pathlib import Path
 
@@ -58,7 +57,6 @@ def test_deploy(
     logger.info("Waiting for Polaris to block before mandatory integrations are related...")
 
     juju.deploy(**s3.to_dict())
-    ca_chain = base64.b64encode(Path(s3_credentials["ca_bundle_path"]).read_bytes()).decode()
     juju.config(
         s3.app,
         {
@@ -66,7 +64,6 @@ def test_deploy(
             "path": s3_credentials["path"],
             "endpoint": s3_credentials["endpoint"],
             "region": s3_credentials["region"],
-            "tls-ca-chain": ca_chain,
         },
     )
     set_s3_credentials(
@@ -133,13 +130,6 @@ def test_polaris_catalog_write_read(
         ),
     )
 
-    # The PyIceberg client can trust the object storage CA, but must not receive static S3 keys.
-    #
-    monkeypatch.setenv("AWS_CA_BUNDLE", s3_credentials["ca_bundle_path"])
-    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
-
     base_url = polaris_base_url(juju)
     catalog = load_catalog(
         "polaris",
@@ -152,10 +142,6 @@ def test_polaris_catalog_write_read(
             "scope": "PRINCIPAL_ROLE:ALL",
             "header.Polaris-Realm": REALM,
             "header.X-Iceberg-Access-Delegation": "vended-credentials",
-            # Note: this makes pyiceberg use s3fs/botocore, thus respecting AWS_CA_BUNDLE.
-            # Otherwise, we would have to trust the CA at the system level (easy to do in
-            # a spread test, but inconvenient for local testing)
-            "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO",
             "s3.endpoint": s3_credentials["endpoint"],
             "s3.region": s3_credentials["region"],
         },

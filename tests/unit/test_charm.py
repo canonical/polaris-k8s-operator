@@ -3,7 +3,7 @@
 
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import ops
 import yaml
@@ -860,9 +860,18 @@ def test_tls_relation_with_certificate_writes_console_tls_assets(
     )
 
     # When
-    with patch(
-        "managers.tls.TLSManager.get_console_tls_material",
-        return_value=("certificate-pem", "private-key-pem"),
+    with (
+        patch("core.models.ConsoleTLS.ready", new_callable=PropertyMock, return_value=True),
+        patch(
+            "core.models.ConsoleTLS.certificate",
+            new_callable=PropertyMock,
+            return_value="certificate-pem",
+        ),
+        patch(
+            "core.models.ConsoleTLS.private_key",
+            new_callable=PropertyMock,
+            return_value="private-key-pem",
+        ),
     ):
         out = polaris_context.run(
             polaris_context.on.relation_created(client_certificates_relation),
