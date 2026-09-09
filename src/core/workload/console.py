@@ -19,7 +19,7 @@ class ConsoleWorkload(WithLogging):
         self.fs = pathops.ContainerPath("/", container=container)
 
     def _console_layer(self, environment: dict[str, str] | None = None) -> ops.pebble.LayerDict:
-        # TODO: handle environment
+        # TODO(oauth): handle environment
         layer: ops.pebble.LayerDict = {
             "services": {
                 CONSOLE_SERVICE_NAME: {
@@ -46,13 +46,7 @@ class ConsoleWorkload(WithLogging):
             return False
         return service.is_running()
 
-    def tls_assets_present(self) -> bool:
-        """Return whether both console TLS assets are present."""
-        return (self.fs / CONSOLE_TLS_CERTIFICATE).exists() and (
-            self.fs / CONSOLE_TLS_PRIVATE_KEY
-        ).exists()
-
-    def write_tls_assets(self, certificate: str, private_key: str) -> bool:
+    def ensure_tls_assets(self, certificate: str, private_key: str) -> bool:
         """Write console TLS certificate and private key.
 
         Returns whether the local TLS asset contents changed.
@@ -79,12 +73,12 @@ class ConsoleWorkload(WithLogging):
         return removed
 
     def restart(self, environment: dict[str, str] | None = None) -> None:
-        """Restart the workload service."""
+        """Restart the console service."""
         self.stop()
         self.start(environment=environment)
 
     def start(self, environment: dict[str, str] | None = None) -> None:
-        """Execute business logic for starting the workload."""
+        """Start the console service."""
         self.container.add_layer(
             CONSOLE_SERVICE_NAME,
             self._console_layer(environment=environment),
@@ -93,6 +87,6 @@ class ConsoleWorkload(WithLogging):
         self.container.start(CONSOLE_SERVICE_NAME)
 
     def stop(self) -> None:
-        """Execute business logic for stopping the workload."""
+        """Stop the console service."""
         if self.ready and CONSOLE_SERVICE_NAME in self.container.get_services():
             self.container.stop(CONSOLE_SERVICE_NAME)

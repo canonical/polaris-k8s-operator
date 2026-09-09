@@ -19,7 +19,7 @@ class ConsoleManager(WithLogging):
         """Update Polaris Console service and restart it."""
         console_tls = self.context.console_tls
         if console_tls.ready:
-            changed = self.workload.write_tls_assets(
+            changed = self.workload.ensure_tls_assets(
                 console_tls.certificate,
                 console_tls.private_key,
             )
