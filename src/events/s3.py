@@ -83,7 +83,7 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
             self.s3_requirer.on.storage_connection_info_gone, self._on_s3_credential_gone
         )
 
-    def _reconcile(self, event: ops.EventBase | None = None) -> None:
+    def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile S3 relation data and workload configuration."""
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
@@ -115,12 +115,12 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_s3_credential_changed(self, event: StorageConnectionInfoChangedEvent) -> None:
         """Handle the `StorageConnectionInfoChangedEvent` event from S3 integrator."""
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _on_s3_credential_gone(self, event: StorageConnectionInfoGoneEvent) -> None:
         """Handle the `StorageConnectionInfoGoneEvent` event for S3 integrator."""
         self.tls_manager.reset()
-        self._reconcile(event)
+        self.reconcile(event)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return the list of statuses for this component."""
