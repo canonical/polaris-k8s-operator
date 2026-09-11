@@ -1,9 +1,11 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import json
 import logging
 from pathlib import Path
 
+import httpx2
 import jubilant
 import yaml
 from apache_polaris.sdk.management.models.create_principal_request import CreatePrincipalRequest
@@ -193,3 +195,28 @@ def test_new_instance_api_is_reachable_with_existing_password(juju: jubilant.Juj
     assert len(principals.principals) == 2
     assert PRINCIPAL_NAME in {principal.name for principal in principals.principals}
     assert ADMIN_USER in {principal.client_id for principal in principals.principals}
+
+
+def test_instance_accessible_through_ingress(
+    juju: jubilant.Juju,
+    ingress: SingleVariantCharmVersion,
+) -> None:
+    """Deploy ingress and check that we can interact with the instance."""
+    juju.deploy(**ingress.to_dict())
+    juju.wait(
+        lambda status: jubilant.all_active(status, ingress.app),
+        delay=5,
+    )
+    juju.integrate(RESTORED_APP_NAME, ingress.app)
+    logger.info("Waiting for polaris and ingress to be active...")
+    juju.wait(
+        lambda status: jubilant.all_active(status, ingress.app, RESTORED_APP_NAME),
+        delay=15,
+    )
+
+    task = juju.run(f"{ingress.app}/0", "show-proxied-endpoints")
+    assert task.return_code == 0
+
+    ingress_endpoint = json.loads(task.results["proxied-endpoints"])[RESTORED_APP_NAME]["url"]
+    response = httpx2.get(f"{ingress_endpoint}/health")
+    response.raise_for_status()

@@ -26,6 +26,7 @@ from core.logging import WithLogging
 from core.workload.console import ConsoleWorkload
 from managers.console import ConsoleManager
 from managers.tls import TLSManager
+from protocols import CharmWithReconcile
 
 
 class _TLSStatuses:
@@ -44,7 +45,7 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing TLS Integration event hooks."""
 
     def __init__(
-        self, charm: ops.CharmBase, context: Context, console_workload: ConsoleWorkload
+        self, charm: CharmWithReconcile, context: Context, console_workload: ConsoleWorkload
     ) -> None:
         super().__init__(charm, "tls")
 
@@ -85,11 +86,11 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle TLS events that may require state reconciliation."""
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _on_certificate(self, event: CertificateAvailableEvent) -> None:
         """Handle the certificate_available event from the TLS provider."""
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _on_certificate_denied(self, event: CertificateDeniedEvent) -> None:
         """Handle the certificate_denied event from the TLS provider."""
@@ -107,10 +108,9 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             event.defer()
             return
 
-        self.console_manager.update()
-        self.charm.unit.set_ports(CONSOLE_PORT)
+        self.reconcile(event)
 
-    def _reconcile(self, event: ops.EventBase | None = None) -> None:
+    def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile TLS relation data and current console exposure mode."""
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
@@ -128,6 +128,8 @@ class TLSEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         console_tls = self.context.console_tls
         port = CONSOLE_TLS_PORT if console_tls.ready else CONSOLE_PORT
         self.charm.unit.set_ports(port)
+
+        self.charm.reconcile("ingress_events")
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return the list of statuses for this component."""

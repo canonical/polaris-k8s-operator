@@ -84,7 +84,7 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             self._on_relation_broken,
         )
 
-    def _reconcile(self, event: ops.EventBase | None = None) -> None:
+    def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile metastore relation data and workload configuration."""
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
@@ -106,11 +106,11 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle metastore relation events."""
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _on_status_update(self, event: StatusRaisedEvent | StatusResolvedEvent) -> None:
         """Handle provider-side metastore status changes."""
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Handle the metastore relation-broken event."""

@@ -99,8 +99,15 @@ class TLSManager(WithLogging):
 
     def build_console_sans_dns(self) -> frozenset[str]:
         """Return DNS SANs for the console TLS integration certificate request."""
-        # TODO(ingress): Implement
-        return frozenset()
+        unit_name = self.context.unit_server.unit_name.replace("/", "-")
+        app_name = self.context.model.app.name
+        model_name = self.context.model.name
+
+        return frozenset(
+            {
+                f"{unit_name}.{app_name}-endpoints.{model_name}.svc.cluster.local",
+            }
+        )
 
     def build_console_certificate_request(self) -> CertificateRequestAttributes:
         """Build a certificate request for the console TLS integration."""

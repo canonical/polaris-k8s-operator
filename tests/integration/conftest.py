@@ -17,7 +17,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 from .helpers import S3Info
-from .supporting_charms import S3, Metastore, SingleVariantCharmVersion, TLSProvider
+from .supporting_charms import S3, Ingress, Metastore, SingleVariantCharmVersion, TLSProvider
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -107,6 +107,11 @@ def s3(platform: str) -> SingleVariantCharmVersion:
 @pytest.fixture(scope="module")
 def tls_provider(platform: str) -> SingleVariantCharmVersion:
     return TLSProvider[platform]
+
+
+@pytest.fixture(scope="module")
+def ingress(platform: str) -> SingleVariantCharmVersion:
+    return Ingress[platform]
 
 
 @pytest.fixture(scope="module")
