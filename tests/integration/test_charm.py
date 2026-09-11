@@ -209,6 +209,10 @@ def test_instance_accessible_through_ingress(
     )
     juju.integrate(RESTORED_APP_NAME, ingress.app)
     logger.info("Waiting for polaris and ingress to be active...")
+    juju.wait(
+        lambda status: jubilant.all_active(status, ingress.app, RESTORED_APP_NAME),
+        delay=15,
+    )
 
     task = juju.run(f"{ingress.app}/0", "show-proxied-endpoints")
     assert task.return_code == 0
