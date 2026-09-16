@@ -7,16 +7,18 @@ from __future__ import annotations
 
 import ops
 from charmlibs.interfaces.certificate_transfer import CertificateTransferRequires
-from charmlibs.interfaces.oauth import OAuthRequirer
+from charmlibs.interfaces.oauth import ClientConfig, OAuthRequirer
 from data_platform_helpers.advanced_statuses.models import StatusObject
 from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtocol
 from data_platform_helpers.advanced_statuses.types import Scope
 
-from core.constants import OAUTH_CA_RELATION_NAME, OAUTH_RELATION_NAME
+from core.constants import OAUTH_CA_RELATION_NAME, OAUTH_CA_CERTIFICATE, OAUTH_RELATION_NAME
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.console import ConsoleWorkload
 from core.workload.polaris import PolarisWorkload
+from managers.polaris import PolarisManager
+from managers.tls import TLSManager
 
 
 class _OAuthStatuses:
@@ -44,6 +46,11 @@ class _OAuthStatuses:
 
 OAuthStatuses = _OAuthStatuses()
 
+OAUTH_GRANT_TYPES = ["authorization_code", "client_credentials"]
+OAUTH_SCOPES = "openid profile email"
+OAUTH_CALLBACK_PATH = "/login"
+OAUTH_CLIENT_AUTHN_METHOD = "client_secret_post"
+
 
 class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing OAuth Integration event hooks."""
@@ -69,6 +76,10 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.oauth = OAuthRequirer(self.charm, client_config, relation_name=OAUTH_RELATION_NAME)
         self.cert_transfer = CertificateTransferRequires(self.charm, OAUTH_CA_RELATION_NAME)
         self.context._oauth_ca_requirer = self.cert_transfer
+        self.polaris_manager = PolarisManager(
+            self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
+        )
+        self.tls_manager = TLSManager(self.context, self.polaris_workload)
 
         self.framework.observe(
             self.charm.on[OAUTH_RELATION_NAME].relation_created, self._on_update
@@ -82,6 +93,19 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle oauth-related events that may require reconciliation."""
         self.reconcile(event)
+
+    def oauth_client_config(self) -> ClientConfig | None:
+        """Build the oauth client configuration published to the provider."""
+        if not self.context.ingress_url or not self.context.ingress_url.startswith("https://"):
+            return None
+
+        return ClientConfig(
+            redirect_uri=f"{self.context.ingress_url}{OAUTH_CALLBACK_PATH}",
+            scope=OAUTH_SCOPES,
+            grant_types=OAUTH_GRANT_TYPES,
+            audience=[],
+            token_endpoint_auth_method=OAUTH_CLIENT_AUTHN_METHOD,
+        )
 
     def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile OAuth relations and workload readiness prerequisites."""
@@ -100,7 +124,15 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        # todo manage everything
+        if client_config := self.oauth_client_config():
+            self.oauth.update_client_config(client_config)
+
+        force_restart = self.tls_manager.ensure_certificates_imported(
+            sorted(self.context.oauth_ca_certificates),
+            "oauth-ca",
+            OAUTH_CA_CERTIFICATE,
+        )
+        self.polaris_manager.update(force_restart=force_restart)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return the list of statuses for this component."""

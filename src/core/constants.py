@@ -22,6 +22,7 @@ REALM = "POLARIS"
 # Files
 POLARIS_APPLICATION_PROPERTIES = "/etc/polaris/application.properties"
 OBJECT_STORAGE_CERTIFICATE = "/etc/polaris/object-storage-ca.pem"
+OAUTH_CA_CERTIFICATE = "/etc/polaris/oauth-ca.pem"
 POLARIS_TRUSTSTORE = "/etc/polaris/polaris-truststore.jks"
 DEFAULT_JAVA_TRUSTSTORE = "/etc/ssl/certs/java/cacerts"
 SYMMETRIC_KEY = "/etc/polaris/symmetric.key"

@@ -40,3 +40,4 @@ class IngressEvents(ops.Object, WithLogging):
         scheme = "https" if port == CONSOLE_TLS_PORT else "http"
 
         self.ingress.provide_ingress_requirements(port=port, scheme=scheme)
+        self.charm.reconcile("oauth_events")
