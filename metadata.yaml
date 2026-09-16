@@ -41,8 +41,8 @@ resources:
   polaris-console-image:
     type: oci-image
     description: OCI image for Polaris Console.
-    # TODO: Update to latest release once its own PR is merged
-    upstream-source: ghcr.io/canonical/polaris-console@sha256:ecb54ba6236d5db57669fdc80cee7bfcb14b55a5e576b2685fea1943cab1b3fe
+    # 0.1.0-bare_edge - 2026-09-16
+    upstream-source: ghcr.io/canonical/polaris-console@sha256:c8b8b855bdf6aa4d324aa30358f88d61b0586fb436370a4771637bf902420e6a
     uid: 584792
     gid: 584792
 
