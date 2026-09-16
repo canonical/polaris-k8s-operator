@@ -74,6 +74,16 @@ requires:
     limit: 1
     optional: false
 
+  oauth:
+    interface: oauth
+    limit: 1
+    optional: true
+
+  oauth-ca:
+    interface: certificate_transfer
+    limit: 1
+    optional: true
+
   s3-credentials:
     interface: s3
     limit: 1
