@@ -26,6 +26,7 @@ class IngressEvents(ops.Object, WithLogging):
             self.charm,
             strip_prefix=True,
         )
+        self.context._ingress_requirer = self.ingress
         self.framework.observe(self.charm.on["ingress"].relation_created, self._on_update)
         self.framework.observe(self.charm.on["ingress"].relation_changed, self._on_update)
 

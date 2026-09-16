@@ -31,6 +31,7 @@ from core.workload.console import ConsoleWorkload
 from core.workload.polaris import PolarisWorkload
 from events.ingress import IngressEvents
 from events.metastore import MetastoreEvents
+from events.oauth import OAuthEvents
 from events.polaris import CharmStatuses, PolarisEvents
 from events.s3 import S3Events
 from events.tls import TLSEvents
@@ -91,6 +92,9 @@ class PolarisK8sCharm(ops.CharmBase):
             cast(CharmWithReconcile, self), self.context, self.console_workload
         )
         self.ingress_events = IngressEvents(self, self.context)
+        self.oauth_events = OAuthEvents(
+            self, self.context, self.polaris_workload, self.console_workload
+        )
         self.polaris_workload_status = PolarisWorkloadStatus(
             self.context, self.polaris_workload, self.console_workload
         )
@@ -101,6 +105,7 @@ class PolarisK8sCharm(ops.CharmBase):
             self.metastore_events,
             self.s3_events,
             self.tls_events,
+            self.oauth_events,
             self.polaris_workload_status,
         )
 

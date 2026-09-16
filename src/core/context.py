@@ -40,6 +40,7 @@ from core.models import (
 if TYPE_CHECKING:
     from charmlibs.interfaces.tls_certificates import TLSCertificatesRequiresV4
     from object_storage import S3Requirer
+    from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 
 
 class Context(ops.Object, WithLogging, StatusesStateProtocol):
@@ -48,6 +49,7 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
     # These elements are injected by integration event handlers to avoid duplicated side-effects
     _s3_requirer: S3Requirer
     _tls_certificates_requirer: TLSCertificatesRequiresV4
+    _ingress_requirer: IngressPerAppRequirer
 
     def __init__(self, charm: ops.CharmBase) -> None:
         super().__init__(charm, "charm_context")
@@ -105,6 +107,18 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
             )
             for unit in self.peer_relation.units
         }
+
+    @property
+    def ingress_relation(self) -> ops.model.Relation | None:
+        """Get the ingress relation."""
+        return self.model.get_relation("ingress")
+
+    @property
+    def ingress_url(self) -> str:
+        """Get the externally reachable ingress URL, if known."""
+        if not hasattr(self, "_ingress_requirer"):
+            return ""
+        return self._ingress_requirer.url or ""
 
     @property
     def metastore_relation(self) -> ops.model.Relation | None:
