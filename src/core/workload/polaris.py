@@ -3,19 +3,21 @@
 
 """Module containing all business logic related to the workload."""
 
+import re
+
 import ops.pebble
 import yaml
 from charmlibs import pathops
 from ops.model import Container
 
 from core.constants import (
+    DEFAULT_JAVA_TRUSTSTORE,
+    DEFAULT_JAVA_TRUSTSTORE_PASSWORD,
     KEYTOOL,
-    OBJECT_STORAGE_CA_ALIAS,
-    OBJECT_STORAGE_CERTIFICATE,
-    OBJECT_STORAGE_TRUSTSTORE,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_BOOTSTRAP_COMMAND,
     POLARIS_SERVICE_NAME,
+    POLARIS_TRUSTSTORE,
     ROCK_METADATA,
     WORKLOAD_GROUP,
     WORKLOAD_USER,
@@ -80,11 +82,39 @@ class PolarisWorkload(WithLogging):
         if self.ready and POLARIS_SERVICE_NAME in self.container.get_services():
             self.container.stop(POLARIS_SERVICE_NAME)
 
-    def import_ca(
-        self, certificate: str, password: str, alias: str = OBJECT_STORAGE_CA_ALIAS
+    def ensure_truststore_initialized(self, password: str) -> bool:
+        """Create the Polaris truststore from the default JVM truststore if missing."""
+        if (self.fs / POLARIS_TRUSTSTORE).exists():
+            return False
+
+        self.container.exec(["cp", DEFAULT_JAVA_TRUSTSTORE, POLARIS_TRUSTSTORE]).wait_output()
+        self.container.exec(
+            ["chown", "-R", f"{WORKLOAD_USER}:{WORKLOAD_GROUP}", POLARIS_TRUSTSTORE]
+        ).wait_output()
+        self.container.exec(["chmod", "660", POLARIS_TRUSTSTORE]).wait_output()
+        self.container.exec(
+            [
+                KEYTOOL,
+                "-storepasswd",
+                "-new",
+                password,
+                "-keystore",
+                POLARIS_TRUSTSTORE,
+                "-storepass",
+                DEFAULT_JAVA_TRUSTSTORE_PASSWORD,
+            ]
+        ).wait_output()
+        return True
+
+    def import_ca_certificate(
+        self,
+        certificate: str,
+        password: str,
+        alias: str,
+        certificate_path: str,
     ) -> None:
-        """Import a CA certificate into the object storage truststore."""
-        pathops.ensure_contents(self.fs / OBJECT_STORAGE_CERTIFICATE, certificate)
+        """Import a CA certificate into the Polaris truststore."""
+        pathops.ensure_contents(self.fs / certificate_path, certificate)
         process = self.container.exec(
             [
                 KEYTOOL,
@@ -93,30 +123,85 @@ class PolarisWorkload(WithLogging):
                 "-alias",
                 alias,
                 "-file",
-                OBJECT_STORAGE_CERTIFICATE,
+                certificate_path,
                 "-keystore",
-                OBJECT_STORAGE_TRUSTSTORE,
+                POLARIS_TRUSTSTORE,
                 "-storepass",
                 password,
                 "-noprompt",
             ]
         )
         process.wait_output()
-        self.container.exec(
-            ["chown", "-R", f"{WORKLOAD_USER}:{WORKLOAD_GROUP}", OBJECT_STORAGE_TRUSTSTORE]
-        ).wait_output()
-        self.container.exec(["chmod", "660", OBJECT_STORAGE_TRUSTSTORE]).wait_output()
 
-    def reset_object_storage_tls(self) -> bool:
-        """Remove object storage TLS files from the workload."""
-        removed = False
-        for path in (OBJECT_STORAGE_TRUSTSTORE, OBJECT_STORAGE_CERTIFICATE):
-            try:
-                (self.fs / path).unlink()
-                removed = True
-            except FileNotFoundError:
+    def truststore_aliases(self, password: str) -> list[str]:
+        """Return aliases currently present in the Polaris truststore."""
+        try:
+            process = self.container.exec(
+                [
+                    KEYTOOL,
+                    "-list",
+                    "-v",
+                    "-keystore",
+                    POLARIS_TRUSTSTORE,
+                    "-storepass",
+                    password,
+                ]
+            )
+            stdout, _ = process.wait_output()
+        except ops.pebble.ExecError as e:
+            stderr = e.stderr or ""
+            stdout = e.stdout or ""
+            if "No such file or directory" in stderr or "Keystore file does not exist" in stdout:
+                return []
+            raise
+        return re.findall(r"^Alias name: (.+)$", stdout, flags=re.MULTILINE)
+
+    def delete_truststore_alias(
+        self,
+        alias: str,
+        password: str,
+    ) -> None:
+        """Delete one alias from the Polaris truststore."""
+        process = self.container.exec(
+            [
+                KEYTOOL,
+                "-delete",
+                "-alias",
+                alias,
+                "-keystore",
+                POLARIS_TRUSTSTORE,
+                "-storepass",
+                password,
+                "-noprompt",
+            ]
+        )
+        process.wait_output()
+
+    def delete_truststore_aliases_by_prefix(
+        self,
+        alias_prefix: str,
+        password: str,
+    ) -> bool:
+        """Delete all truststore aliases matching the given prefix."""
+        deleted = False
+        for alias in self.truststore_aliases(password):
+            if not alias.startswith(alias_prefix):
                 continue
-        return removed
+            self.delete_truststore_alias(alias, password)
+            deleted = True
+        return deleted
+
+    def ensure_file(self, path: str, content: str) -> bool:
+        """Ensure a file has the expected content."""
+        return pathops.ensure_contents(self.fs / path, content)
+
+    def remove_file(self, path: str) -> bool:
+        """Remove one file from the workload."""
+        try:
+            (self.fs / path).unlink()
+        except FileNotFoundError:
+            return False
+        return True
 
     def bootstrap_metastore(self, realm: str, bootstrap_credentials: str) -> None:
         """Bootstrap the Polaris metastore.

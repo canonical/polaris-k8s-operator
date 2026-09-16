@@ -13,7 +13,7 @@ from object_storage import (
     StorageConnectionInfoGoneEvent,
 )
 
-from core.constants import S3_RELATION_NAME
+from core.constants import OBJECT_STORAGE_CERTIFICATE, S3_RELATION_NAME
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
@@ -107,9 +107,17 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
                 ObjectStorageStatuses.IMPORTING_OBJECT_STORAGE_CA,
                 scope="unit",
             )
-            force_restart = self.tls_manager.ensure_ca_chain_imported(self.context.s3.tls_ca_chain)
+            force_restart = self.tls_manager.ensure_certificates_imported(
+                self.context.s3.tls_ca_chain,
+                "object-storage-ca",
+                OBJECT_STORAGE_CERTIFICATE,
+            )
         else:
-            force_restart = self.tls_manager.reset()
+            force_restart = self.tls_manager.ensure_certificates_imported(
+                [],
+                "object-storage-ca",
+                OBJECT_STORAGE_CERTIFICATE,
+            )
 
         self.polaris_manager.update(force_restart=force_restart)
 
@@ -119,7 +127,11 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_s3_credential_gone(self, event: StorageConnectionInfoGoneEvent) -> None:
         """Handle the `StorageConnectionInfoGoneEvent` event for S3 integrator."""
-        self.tls_manager.reset()
+        self.tls_manager.ensure_certificates_imported(
+            [],
+            "object-storage-ca",
+            OBJECT_STORAGE_CERTIFICATE,
+        )
         self.reconcile(event)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:

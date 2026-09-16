@@ -3,7 +3,7 @@
 
 """Polaris workload configuration."""
 
-from core.constants import ADMIN_USER, OBJECT_STORAGE_TRUSTSTORE, REALM, SYMMETRIC_KEY
+from core.constants import ADMIN_USER, POLARIS_TRUSTSTORE, REALM, SYMMETRIC_KEY
 from core.context import Context
 from core.logging import WithLogging
 
@@ -61,16 +61,22 @@ class PolarisConfig(WithLogging):
                 }
             )
 
-        truststore_password = self.context.unit_server.truststore_password
-        if self.context.s3.has_custom_ca and truststore_password:
-            env["JAVA_TOOL_OPTIONS"] = " ".join(
+        if java_tool_options := self.java_tool_options:
+            env["JAVA_TOOL_OPTIONS"] = java_tool_options
+
+        return env
+
+    @property
+    def java_tool_options(self) -> str:
+        """Return JVM options required by Polaris integrations."""
+        if truststore_password := self.context.unit_server.truststore_password:
+            return " ".join(
                 (
-                    f"-Djavax.net.ssl.trustStore={OBJECT_STORAGE_TRUSTSTORE}",
+                    f"-Djavax.net.ssl.trustStore={POLARIS_TRUSTSTORE}",
                     f"-Djavax.net.ssl.trustStorePassword={truststore_password}",
                 )
             )
-
-        return env
+        return ""
 
     @property
     def _s3_conf(self) -> dict[str, str]:
