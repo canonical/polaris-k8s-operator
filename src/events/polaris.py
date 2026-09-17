@@ -285,7 +285,7 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         if cluster.shared_key != shared_key:
             cluster.set_shared_key(shared_key)
 
-    def _reconcile(self, event: ops.EventBase) -> None:
+    def reconcile(self, event: ops.EventBase) -> None:
         """Reconcile peer state and local workload configuration."""
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
@@ -315,12 +315,12 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle events that may require reconciling workload configuration."""
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _on_leader_elected(self, event: ops.LeaderElectedEvent) -> None:
         """Handle the leader-elected event."""
         self.charm.unit.set_workload_version(self.polaris_workload.get_workload_version())
-        self._reconcile(event)
+        self.reconcile(event)
 
     def _is_configured_system_user_secret(self, secret: ops.Secret) -> bool:
         """Return whether the given secret is the configured system-user secret."""
@@ -353,7 +353,7 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             # Status collection will surface SYSTEM_USER_SECRET_INVALID.
             return
 
-        self._reconcile(event)
+        self.reconcile(event)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return the list of statuses for this component."""

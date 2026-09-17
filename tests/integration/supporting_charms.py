@@ -64,3 +64,12 @@ TLSProvider: CharmVersion = {
         app="self-signed-certificates",
     ),
 }
+
+Ingress: CharmVersion = {
+    "amd64": SingleVariantCharmVersion(
+        charm="traefik-k8s", channel="latest/stable", app="traefik", trust=True
+    ),
+    "arm64": SingleVariantCharmVersion(
+        charm="traefik-k8s", channel="latest/stable", app="traefik", trust=True
+    ),
+}
