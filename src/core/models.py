@@ -374,15 +374,9 @@ class OAuth:
 
     @property
     def ready(self) -> bool:
-        """Return whether the oauth relation has complete provider metadata and credentials."""
+        """Return whether the oauth relation has the data needed by the current charm logic."""
         return bool(
             self.issuer_url
-            and self.authorization_endpoint
-            and self.token_endpoint
-            and self.introspection_endpoint
-            and self.userinfo_endpoint
-            and self.jwks_endpoint
-            and self.scope
             and self.client_id
             and self.client_secret_id
             and self.client_secret

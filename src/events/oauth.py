@@ -12,11 +12,17 @@ from data_platform_helpers.advanced_statuses.models import StatusObject
 from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtocol
 from data_platform_helpers.advanced_statuses.types import Scope
 
-from core.constants import OAUTH_CA_RELATION_NAME, OAUTH_CA_CERTIFICATE, OAUTH_RELATION_NAME
+from core.constants import (
+    OAUTH_CA_RELATION_NAME,
+    OAUTH_CA_CERTIFICATE,
+    OAUTH_CALLBACK_PATH,
+    OAUTH_RELATION_NAME,
+)
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.console import ConsoleWorkload
 from core.workload.polaris import PolarisWorkload
+from managers.console import ConsoleManager
 from managers.polaris import PolarisManager
 from managers.tls import TLSManager
 
@@ -48,7 +54,6 @@ OAuthStatuses = _OAuthStatuses()
 
 OAUTH_GRANT_TYPES = ["authorization_code", "client_credentials"]
 OAUTH_SCOPES = "openid profile email"
-OAUTH_CALLBACK_PATH = "/login"
 OAUTH_CLIENT_AUTHN_METHOD = "client_secret_post"
 
 
@@ -79,6 +84,7 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.polaris_manager = PolarisManager(
             self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
         )
+        self.console_manager = ConsoleManager(self.context, self.console_workload)
         self.tls_manager = TLSManager(self.context, self.polaris_workload)
 
         self.framework.observe(
@@ -118,11 +124,14 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        if not self.polaris_workload.ready or not self.console_workload.ready:
-            self.logger.info("Workload not ready")
+        if not self.polaris_workload.active or not self.console_workload.ready:
+            # We need an active polaris so that we can create the oidc user
+            self.logger.info("Workloads not ready")
             if event:
                 event.defer()
             return
+
+        self.polaris_manager.ensure_oidc_principal_role()
 
         if client_config := self.oauth_client_config():
             self.oauth.update_client_config(client_config)
@@ -132,6 +141,7 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             "oauth-ca",
             OAUTH_CA_CERTIFICATE,
         )
+        self.console_manager.update()
         self.polaris_manager.update(force_restart=force_restart)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:

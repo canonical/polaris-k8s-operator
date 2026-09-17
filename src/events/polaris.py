@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from config.charm import PolarisCharmConfig
 from core.constants import (
-    ADMIN_USER,
+    ROOT_PRINCIPAL_ID,
     CONSOLE_CONTAINER_NAME,
     PEERS_RELATION_NAME,
     POLARIS_CONTAINER_NAME,
@@ -180,8 +180,8 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         if not content:
             return None
 
-        if not (password := content.get(ADMIN_USER)):
-            self.logger.error("Password for user %s not found in secret", ADMIN_USER)
+        if not (password := content.get(ROOT_PRINCIPAL_ID)):
+            self.logger.error("Password for user %s not found in secret", ROOT_PRINCIPAL_ID)
             return None
 
         return password

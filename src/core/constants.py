@@ -40,10 +40,12 @@ STATUS_RELATION_NAME = "status-peers"
 TLS_RELATION_NAME = "client-certificates"
 
 # Misc.
-ADMIN_USER = "charmed-operator"
+ROOT_PRINCIPAL_ID = "charmed-operator"
+OIDC_PRINCIPAL_ROLE = "oidc_user"
 POLARIS_METASTORE_DATABASE_NAME = "polaris"
 POLARIS_BOOTSTRAP_COMMAND = ("/opt/polaris/bin/admin", "bootstrap")
 KEYTOOL = "keytool"
 DEFAULT_JAVA_TRUSTSTORE_PASSWORD = "changeit"
 SYSTEM_USER_SECRET_LABEL_SUFFIX = "system_user_secret"
 RANDOM_KEY_SIZE = 32
+OAUTH_CALLBACK_PATH = "/login"

@@ -3,7 +3,13 @@
 
 """Polaris workload configuration."""
 
-from core.constants import ADMIN_USER, POLARIS_TRUSTSTORE, REALM, SYMMETRIC_KEY
+from core.constants import (
+    OIDC_PRINCIPAL_ROLE,
+    ROOT_PRINCIPAL_ID,
+    POLARIS_TRUSTSTORE,
+    REALM,
+    SYMMETRIC_KEY,
+)
 from core.context import Context
 from core.logging import WithLogging
 
@@ -17,7 +23,7 @@ class PolarisConfig(WithLogging):
     @property
     def bootstrap_credentials(self) -> str:
         """Polaris root principal credentials."""
-        return f"{REALM},{ADMIN_USER},{self.context.cluster.admin_password}"
+        return f"{REALM},{ROOT_PRINCIPAL_ID},{self.context.cluster.admin_password}"
 
     @property
     def _base_conf(self) -> dict[str, str]:
@@ -43,7 +49,7 @@ class PolarisConfig(WithLogging):
                 }
             )
 
-        return conf
+        return conf | self._oauth_conf
 
     @property
     def service_environment(self) -> dict[str, str]:
@@ -77,6 +83,25 @@ class PolarisConfig(WithLogging):
                 )
             )
         return ""
+
+    @property
+    def _oauth_conf(self) -> dict[str, str]:
+        """Return the minimal OAuth/OIDC authentication configuration for Polaris."""
+        if not self.context.oauth.ready:
+            return {}
+
+        return {
+            "polaris.authentication.type": "mixed",
+            "quarkus.oidc.tenant-enabled": "true",
+            "quarkus.oidc.auth-server-url": self.context.oauth.issuer_url,
+            "polaris.oidc.principal-mapper.type": "default",
+            "polaris.oidc.principal-mapper.name-claim-path": "sub",
+            "quarkus.oidc.roles.role-claim-path": "scp",
+            "polaris.oidc.principal-roles-mapper.type": "default",
+            "polaris.oidc.principal-roles-mapper.filter": ".+",
+            "polaris.oidc.principal-roles-mapper.mappings[0].regex": "^.*$",
+            "polaris.oidc.principal-roles-mapper.mappings[0].replacement": f"PRINCIPAL_ROLE:{OIDC_PRINCIPAL_ROLE}",
+        }
 
     @property
     def _s3_conf(self) -> dict[str, str]:
