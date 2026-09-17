@@ -15,10 +15,10 @@ from core.constants import (
     OBJECT_STORAGE_TRUSTSTORE,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_BOOTSTRAP_COMMAND,
-    POLARIS_GROUP,
     POLARIS_SERVICE_NAME,
-    POLARIS_USER,
     ROCK_METADATA,
+    WORKLOAD_GROUP,
+    WORKLOAD_USER,
 )
 from core.logging import WithLogging
 
@@ -73,7 +73,7 @@ class PolarisWorkload(WithLogging):
             self._polaris_layer(environment=environment),
             combine=True,
         )
-        self.container.restart(POLARIS_SERVICE_NAME)
+        self.container.start(POLARIS_SERVICE_NAME)
 
     def stop(self) -> None:
         """Execute business logic for stopping the workload."""
@@ -103,7 +103,7 @@ class PolarisWorkload(WithLogging):
         )
         process.wait_output()
         self.container.exec(
-            ["chown", "-R", f"{POLARIS_USER}:{POLARIS_GROUP}", OBJECT_STORAGE_TRUSTSTORE]
+            ["chown", "-R", f"{WORKLOAD_USER}:{WORKLOAD_GROUP}", OBJECT_STORAGE_TRUSTSTORE]
         ).wait_output()
         self.container.exec(["chmod", "660", OBJECT_STORAGE_TRUSTSTORE]).wait_output()
 
@@ -119,12 +119,17 @@ class PolarisWorkload(WithLogging):
         return removed
 
     def bootstrap_metastore(self, realm: str, bootstrap_credentials: str) -> None:
-        """Bootstrap the Polaris metastore."""
+        """Bootstrap the Polaris metastore.
+
+        Quarkus applications default to listening on 8080, that we want to avoid because
+        of the console container in the same pod.
+        """
         try:
             process = self.container.exec(
                 [*POLARIS_BOOTSTRAP_COMMAND, f"-r={realm}", f"-c={bootstrap_credentials}"],
                 environment={
                     "QUARKUS_CONFIG_LOCATIONS": f"file://{POLARIS_APPLICATION_PROPERTIES}",
+                    "POLARIS_JAVA_OPTS": "-Dquarkus.http.port=0 -Dquarkus.management.port=0",
                 },
             )
             stdout, stderr = process.wait_output()

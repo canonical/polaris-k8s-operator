@@ -9,6 +9,8 @@ from ops.testing import Container, Context, Exec, Model, Mount, PeerRelation, Re
 
 from charm import PolarisK8sCharm
 from core.constants import (
+    CONSOLE_CONTAINER_NAME,
+    CONSOLE_SERVICE_NAME,
     METASTORE_RELATION_NAME,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
@@ -16,6 +18,7 @@ from core.constants import (
     POLARIS_CONTAINER_NAME,
     POLARIS_SERVICE_NAME,
     S3_RELATION_NAME,
+    TLS_RELATION_NAME,
 )
 
 
@@ -67,6 +70,39 @@ def polaris_container(tmp_path: Path) -> Container:
                 }
             )
         },
+    )
+
+
+@pytest.fixture
+def console_container(tmp_path: Path) -> Container:
+    """Provide fixture for the Polaris workload container."""
+    return Container(
+        name=CONSOLE_CONTAINER_NAME,
+        can_connect=True,
+        mounts={"console-tls": Mount(location="/etc/nginx/tls", source=tmp_path)},
+        service_statuses={CONSOLE_SERVICE_NAME: ServiceStatus.ACTIVE},
+        layers={
+            CONSOLE_SERVICE_NAME: Layer(
+                {
+                    "services": {
+                        CONSOLE_SERVICE_NAME: {
+                            "override": "merge",
+                            "startup": "enabled",
+                            "on-failure": "restart",
+                        }
+                    }
+                }
+            )
+        },
+    )
+
+
+@pytest.fixture
+def client_certificates_relation() -> Relation:
+    return Relation(
+        endpoint=TLS_RELATION_NAME,
+        interface="tls-certificates",
+        remote_app_name="self-signed-certificates",
     )
 
 

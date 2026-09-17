@@ -466,6 +466,23 @@ files = [
 pycparser = {version = "*", markers = "implementation_name != \"PyPy\""}
 
 [[package]]
+name = "charmlibs-interfaces-tls-certificates"
+version = "1.10.1"
+description = "The charmlibs.interfaces.tls_certificates package."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "charmlibs_interfaces_tls_certificates-1.10.1-py3-none-any.whl", hash = "sha256:3cf970aaccdbc052e991c517621cc093c07e753640f58e4cc8b3ab9ef9480605"},
+    {file = "charmlibs_interfaces_tls_certificates-1.10.1.tar.gz", hash = "sha256:df6aebd28586366d721971459f25eb896ea854edded9cd21311d998bc83abc08"},
+]
+
+[package.dependencies]
+cryptography = ">=43.0.0"
+ops = "*"
+pydantic = "*"
+
+[[package]]
 name = "charmlibs-pathops"
 version = "1.3.0.post0"
 description = "A pathlib-like interface for Juju K8s charms to interact with files in their workload container."
@@ -3368,4 +3385,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "dcfba1ee242ebd74cc598629af93c948b3febcd11aa7e5b4dacf24bdcaf5c4f8"
+content-hash = "ea130db9862d55025368a8d8d58d210a3eb4e12092da7a7add6053ce31fce8ab"

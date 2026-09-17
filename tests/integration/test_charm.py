@@ -31,7 +31,10 @@ PRINCIPAL_NAME = "restoration-check"
 
 def test_deploy(juju: jubilant.Juju, polaris_charm: Path) -> None:
     """Deploy polaris."""
-    resources = {"polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"]}
+    resources = {
+        "polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"],
+        "polaris-console-image": METADATA["resources"]["polaris-console-image"]["upstream-source"],
+    }
     juju.deploy(polaris_charm, app="polaris-k8s", resources=resources)
     logger.info("Waiting for polaris to be idle...")
     juju.wait(jubilant.all_blocked, delay=5)
@@ -163,7 +166,10 @@ def test_deploy_new_instance_with_existing_metastore(
     logger.info("Waiting for the previous polaris instance to be removed...")
     juju.wait(lambda status: APP_NAME not in status.apps, delay=5)
 
-    resources = {"polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"]}
+    resources = {
+        "polaris-image": METADATA["resources"]["polaris-image"]["upstream-source"],
+        "polaris-console-image": METADATA["resources"]["polaris-console-image"]["upstream-source"],
+    }
     secret_uri = juju.add_secret(RESTORED_SECRET_NAME, {f"{ADMIN_USER}": UPDATED_TEST_PASSWORD})
     juju.deploy(
         polaris_charm,

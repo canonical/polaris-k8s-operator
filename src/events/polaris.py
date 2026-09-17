@@ -16,14 +16,16 @@ from pydantic import ValidationError
 from config.charm import PolarisCharmConfig
 from core.constants import (
     ADMIN_USER,
+    CONSOLE_CONTAINER_NAME,
     PEERS_RELATION_NAME,
     POLARIS_CONTAINER_NAME,
     RANDOM_KEY_SIZE,
-    REST_PORT,
 )
 from core.context import Context
 from core.logging import WithLogging
+from core.workload.console import ConsoleWorkload
 from core.workload.polaris import PolarisWorkload
+from managers.console import ConsoleManager
 from managers.polaris import PolarisManager
 
 SYSTEM_USER_SECRET_LABEL = "system-user"
@@ -33,7 +35,10 @@ class _CharmStatuses:
     """Generic status objects related to the charm."""
 
     ACTIVE_IDLE = StatusObject(status="active", message="")
-    NOT_RUNNING = StatusObject(status="waiting", message="Polaris is not serving requests")
+    POLARIS_NOT_RUNNING = StatusObject(status="waiting", message="Polaris is not serving requests")
+    CONSOLE_NOT_RUNNING = StatusObject(
+        status="waiting", message="Polaris Console is not serving requests"
+    )
     ROTATING_ROOT_PRINCIPAL_CREDENTIALS = StatusObject(
         status="maintenance",
         message="Rotating Polaris root principal credentials",
@@ -107,7 +112,11 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
     """Class implementing Polaris related event hooks."""
 
     def __init__(
-        self, charm: ops.CharmBase, context: Context, polaris_workload: PolarisWorkload
+        self,
+        charm: ops.CharmBase,
+        context: Context,
+        polaris_workload: PolarisWorkload,
+        console_workload: ConsoleWorkload,
     ) -> None:
         super().__init__(charm, "polaris")
 
@@ -117,16 +126,20 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.charm = charm
         self.context = context
         self.polaris_workload = polaris_workload
+        self.console_workload = console_workload
 
         self.polaris_manager = PolarisManager(
             self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
         )
-        # TODO(console): Add console manager
+        self.console_manager = ConsoleManager(self.context, self.console_workload)
 
-        self.framework.observe(self.charm.on.start, self._on_start)
         self.framework.observe(self.charm.on.config_changed, self._on_update)
         self.framework.observe(self.charm.on.update_status, self._on_update)
         self.framework.observe(self.charm.on.leader_elected, self._on_leader_elected)
+        self.framework.observe(
+            self.charm.on[CONSOLE_CONTAINER_NAME].pebble_ready,
+            self._on_update,
+        )
         self.framework.observe(
             self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
             self._on_update,
@@ -141,10 +154,6 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         )
 
         self.framework.observe(self.charm.on.secret_changed, self._on_secret_changed)
-
-    def _on_start(self, event: ops.StartEvent) -> None:
-        """Handle the start event."""
-        self.charm.unit.set_ports(REST_PORT)
 
     def _configured_system_user_secret_id(self) -> str | None:
         """Return configured system-user secret id, if any."""
@@ -283,10 +292,12 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             event.defer()
             return
 
-        if not self.polaris_workload.ready:
+        if not self.polaris_workload.ready or not self.console_workload.ready:
             self.logger.info("Workload not ready")
             event.defer()
             return
+
+        self.console_manager.update()
 
         ensure_admin_credentials_result = self._ensure_admin_credentials()
         if ensure_admin_credentials_result is EnsureAdminCredentialsResult.FAILED:
@@ -301,7 +312,6 @@ class PolarisEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 return
             if ensure_admin_credentials_result is EnsureAdminCredentialsResult.PENDING:
                 event.defer()
-        # TODO(console): Update console_manager as well.
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle events that may require reconciling workload configuration."""
