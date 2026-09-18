@@ -131,8 +131,6 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        self.polaris_manager.ensure_oidc_principal_role()
-
         if client_config := self.oauth_client_config():
             self.oauth.update_client_config(client_config)
 

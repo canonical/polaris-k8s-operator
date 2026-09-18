@@ -9,16 +9,11 @@ import ops
 from apache_polaris.cli.api_client_builder import ApiClientBuilder
 from apache_polaris.cli.constants import DEFAULT_HEADER
 from apache_polaris.sdk.management.api import PolarisDefaultApi
-from apache_polaris.sdk.management.models.create_principal_role_request import (
-    CreatePrincipalRoleRequest,
-)
-from apache_polaris.sdk.management.models.principal_role import PrincipalRole
 from apache_polaris.sdk.management.models.reset_principal_request import ResetPrincipalRequest
 from charmlibs import pathops
 
 from config.polaris import PolarisConfig
 from core.constants import (
-    OIDC_PRINCIPAL_ROLE,
     POLARIS_APPLICATION_PROPERTIES,
     REALM,
     REST_PORT,
@@ -70,20 +65,6 @@ class PolarisManager(WithLogging):
         api.reset_credentials(
             self._root_principal_name(api),
             ResetPrincipalRequest(clientId=ROOT_PRINCIPAL_ID, clientSecret=new_password),
-        )
-
-    def ensure_oidc_principal_role(self) -> None:
-        """Ensure the OIDC principal role expected by the OAuth configuration exists.
-
-        Assumes Polaris is running.
-        """
-        api = self._api(client_secret=self.context.cluster.admin_password)
-        principal_roles = api.list_principal_roles().roles
-        if OIDC_PRINCIPAL_ROLE in {role.name for role in principal_roles}:
-            return
-
-        api.create_principal_role(
-            CreatePrincipalRoleRequest(principalRole=PrincipalRole(name=OIDC_PRINCIPAL_ROLE))
         )
 
     def update(

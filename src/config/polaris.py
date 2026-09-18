@@ -4,7 +4,6 @@
 """Polaris workload configuration."""
 
 from core.constants import (
-    OIDC_PRINCIPAL_ROLE,
     ROOT_PRINCIPAL_ID,
     POLARIS_TRUSTSTORE,
     REALM,
@@ -100,7 +99,7 @@ class PolarisConfig(WithLogging):
             "polaris.oidc.principal-roles-mapper.type": "default",
             "polaris.oidc.principal-roles-mapper.filter": ".+",
             "polaris.oidc.principal-roles-mapper.mappings[0].regex": "^.*$",
-            "polaris.oidc.principal-roles-mapper.mappings[0].replacement": f"PRINCIPAL_ROLE:{OIDC_PRINCIPAL_ROLE}",
+            "polaris.oidc.principal-roles-mapper.mappings[0].replacement": "PRINCIPAL_ROLE:ALL",
         }
 
     @property

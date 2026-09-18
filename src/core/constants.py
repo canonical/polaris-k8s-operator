@@ -41,7 +41,6 @@ TLS_RELATION_NAME = "client-certificates"
 
 # Misc.
 ROOT_PRINCIPAL_ID = "charmed-operator"
-OIDC_PRINCIPAL_ROLE = "oidc_user"
 POLARIS_METASTORE_DATABASE_NAME = "polaris"
 POLARIS_BOOTSTRAP_COMMAND = ("/opt/polaris/bin/admin", "bootstrap")
 KEYTOOL = "keytool"
