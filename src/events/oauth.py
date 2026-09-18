@@ -13,8 +13,8 @@ from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtoc
 from data_platform_helpers.advanced_statuses.types import Scope
 
 from core.constants import (
-    OAUTH_CA_RELATION_NAME,
     OAUTH_CA_CERTIFICATE,
+    OAUTH_CA_RELATION_NAME,
     OAUTH_CALLBACK_PATH,
     OAUTH_RELATION_NAME,
 )

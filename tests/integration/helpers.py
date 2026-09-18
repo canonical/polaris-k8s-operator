@@ -21,18 +21,18 @@ from apache_polaris.sdk.management import ApiClient, Configuration, rest
 from apache_polaris.sdk.management.api import PolarisDefaultApi
 
 from core.constants import (
-    ADMIN_USER,
     CONSOLE_PORT,
     CONSOLE_TLS_PORT,
     PEERS_RELATION_NAME,
     REALM,
+    ROOT_PRINCIPAL_ID,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 
 METADATA = yaml.safe_load(Path("metadata.yaml").read_text())
 APP_NAME = METADATA["name"]
 
-INTERNAL_ADMIN_PASSWORD_KEY = f"{ADMIN_USER}-password"
+INTERNAL_ADMIN_PASSWORD_KEY = f"{ROOT_PRINCIPAL_ID}-password"
 
 S3Info = TypedDict(
     "S3Info",
@@ -84,7 +84,7 @@ def admin_password_from_internal_secret(
 def polaris_api_client(
     base_url: str,
     *,
-    client_id: str = ADMIN_USER,
+    client_id: str = ROOT_PRINCIPAL_ID,
     client_secret: str,
     realm: str = REALM,
     header: str = DEFAULT_HEADER,
@@ -112,7 +112,7 @@ def polaris_management_api(
     juju: jubilant.Juju,
     *,
     app: str = APP_NAME,
-    client_id: str = ADMIN_USER,
+    client_id: str = ROOT_PRINCIPAL_ID,
     client_secret: str | None = None,
     realm: str = REALM,
     port: int = CONSOLE_PORT,
@@ -136,7 +136,6 @@ def polaris_management_api(
                 "scope": "PRINCIPAL_ROLE:ALL",
             },
             headers={
-                "Content-Type": "application/x-www-form-urlencoded",
                 DEFAULT_HEADER: realm,
             },
             verify=False,

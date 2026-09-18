@@ -21,8 +21,8 @@ from dpcharmlibs.interfaces import (
 from pydantic import Field
 
 from core.constants import (
-    ADMIN_USER,
     POLARIS_METASTORE_DATABASE_NAME,
+    ROOT_PRINCIPAL_ID,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 
@@ -376,10 +376,7 @@ class OAuth:
     def ready(self) -> bool:
         """Return whether the oauth relation has the data needed by the current charm logic."""
         return bool(
-            self.issuer_url
-            and self.client_id
-            and self.client_secret_id
-            and self.client_secret
+            self.issuer_url and self.client_id and self.client_secret_id and self.client_secret
         )
 
 
@@ -445,7 +442,7 @@ class PolarisCluster(RelationState):
 
     def set_admin_password(self, password: str) -> None:
         """Update the admin password in peer app databag with given content."""
-        self.update({f"{ADMIN_USER}_password": password})
+        self.update({f"{ROOT_PRINCIPAL_ID}_password": password})
 
     @property
     def shared_key(self) -> str:

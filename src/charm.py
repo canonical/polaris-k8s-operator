@@ -91,7 +91,7 @@ class PolarisK8sCharm(ops.CharmBase):
         self.tls_events = TLSEvents(
             cast(CharmWithReconcile, self), self.context, self.console_workload
         )
-        self.ingress_events = IngressEvents(self, self.context)
+        self.ingress_events = IngressEvents(cast(CharmWithReconcile, self), self.context)
         self.oauth_events = OAuthEvents(
             self, self.context, self.polaris_workload, self.console_workload
         )

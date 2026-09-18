@@ -15,11 +15,11 @@ from pydantic import ValidationError
 
 from config.charm import PolarisCharmConfig
 from core.constants import (
-    ROOT_PRINCIPAL_ID,
     CONSOLE_CONTAINER_NAME,
     PEERS_RELATION_NAME,
     POLARIS_CONTAINER_NAME,
     RANDOM_KEY_SIZE,
+    ROOT_PRINCIPAL_ID,
 )
 from core.context import Context
 from core.logging import WithLogging

@@ -4,9 +4,9 @@
 """Polaris workload configuration."""
 
 from core.constants import (
-    ROOT_PRINCIPAL_ID,
     POLARIS_TRUSTSTORE,
     REALM,
+    ROOT_PRINCIPAL_ID,
     SYMMETRIC_KEY,
 )
 from core.context import Context
