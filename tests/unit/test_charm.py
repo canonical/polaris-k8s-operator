@@ -12,7 +12,6 @@ from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secre
 
 from charm import PolarisK8sCharm
 from core.constants import (
-    ADMIN_USER,
     CONSOLE_PORT,
     CONSOLE_TLS_CERTIFICATE,
     CONSOLE_TLS_PORT,
@@ -22,6 +21,7 @@ from core.constants import (
     POLARIS_CONTAINER_NAME,
     POLARIS_SERVICE_NAME,
     RANDOM_KEY_SIZE,
+    ROOT_PRINCIPAL_ID,
     SYMMETRIC_KEY,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
@@ -208,7 +208,7 @@ def test_bare_leader_deployment_writes_config_with_random_password(
     credentials = _bootstrap_credentials_line(config)
     password = credentials.rsplit(",", maxsplit=1)[1]
 
-    assert credentials.startswith(f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},")
+    assert credentials.startswith(f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},")
     assert password
     assert len(password) == RANDOM_KEY_SIZE * 2
     assert "polaris.authentication.token-broker.type=symmetric-key" in config
@@ -232,7 +232,7 @@ def test_config_changed_uses_configured_system_user_secret(
 ) -> None:
     # Given
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     state = State(
@@ -249,7 +249,7 @@ def test_config_changed_uses_configured_system_user_secret(
     # Then
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{USER_PASSWORD}" in config
+    assert f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{USER_PASSWORD}" in config
     assert out.get_secret(id=USER_SECRET_ID).label == SYSTEM_USER_SECRET_LABEL
 
     relation = out.get_relation(polaris_peers_relation)
@@ -280,7 +280,7 @@ def test_config_changed_switches_from_random_password_to_user_secret(
     initial_password = _bootstrap_credentials_line(initial_config).rsplit(",", maxsplit=1)[1]
 
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     configured_state = State(
@@ -304,7 +304,7 @@ def test_config_changed_switches_from_random_password_to_user_secret(
 
     assert initial_password
     assert initial_password != USER_PASSWORD
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{USER_PASSWORD}" in config
+    assert f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{USER_PASSWORD}" in config
 
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "3"
@@ -329,8 +329,8 @@ def test_secret_changed_updates_leader_config_and_epoch(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
-        latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
+        latest_content={ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
         label=SYSTEM_USER_SECRET_LABEL,
     )
@@ -353,7 +353,10 @@ def test_secret_changed_updates_leader_config_and_epoch(
 
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+    assert (
+        f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{UPDATED_USER_PASSWORD}"
+        in config
+    )
 
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "2"
@@ -382,8 +385,8 @@ def test_secret_changed_applies_password_update_after_bootstrap(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
-        latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
+        latest_content={ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
         label=SYSTEM_USER_SECRET_LABEL,
     )
@@ -433,7 +436,7 @@ def test_config_changed_applies_password_update_after_bootstrap(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     state = State(
@@ -484,7 +487,7 @@ def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     state = State(
@@ -522,7 +525,10 @@ def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "3"
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+    assert (
+        f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{UPDATED_USER_PASSWORD}"
+        in config
+    )
 
 
 def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
@@ -548,7 +554,7 @@ def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
         label=SYSTEM_USER_SECRET_LABEL,
     )
@@ -957,5 +963,8 @@ def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed
     # Then
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+    assert (
+        f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{UPDATED_USER_PASSWORD}"
+        in config
+    )
     assert (tmp_path / Path(SYMMETRIC_KEY).name).read_text() == "shared-key-value"

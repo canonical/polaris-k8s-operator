@@ -151,7 +151,6 @@ def test_integrate_iam(
       to trust the CA even if is used by Polaris' very own ingress. Hence, the second relation
       on oauth-ca.
     """
-
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", s3_credentials["access_key"])
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", s3_credentials["secret_key"])
     monkeypatch.setenv("AWS_DEFAULT_REGION", s3_credentials["region"])
