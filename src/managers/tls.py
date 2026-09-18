@@ -6,7 +6,7 @@
 import ipaddress
 import secrets
 import string
-from typing import cast
+from typing import Sequence, cast
 
 import ops
 from charmlibs.interfaces.tls_certificates import CertificateRequestAttributes
@@ -39,41 +39,65 @@ class TLSManager(WithLogging):
         if not self.context.unit_server.truststore_password:
             self.logger.info("Generating new truststore password")
             password = self.generate_password()
+            self.polaris_workload.ensure_truststore_initialized(password)
             self.context.unit_server.set_truststore_password(password)
             return password
 
         return self.context.unit_server.truststore_password
 
-    def ensure_ca_chain_imported(self, ca_chain: list[str]) -> bool:
-        """Import an object-storage CA chain into the Polaris workload truststore.
+    def ensure_certificates_imported(
+        self,
+        certificates: Sequence[str],
+        alias_prefix: str,
+        certificate_path: str,
+    ) -> bool:
+        """Reconcile certificates in the Polaris workload truststore.
 
         The boolean return type indicates if the Polaris workload should be restarted.
         """
-        if not ca_chain:
-            return self.reset()
-
-        self.polaris_workload.reset_object_storage_tls()
         password = self.truststore_password()
+        self.polaris_workload.ensure_truststore_initialized(password)
+
+        current_aliases = {
+            alias
+            for alias in self.polaris_workload.truststore_aliases(password)
+            if alias.startswith(alias_prefix)
+        }
+
+        if not certificates:
+            self.logger.info("Deleting %s certificates", alias_prefix)
+            deleted = self.polaris_workload.delete_truststore_aliases_by_prefix(
+                alias_prefix,
+                password,
+            )
+            removed_file = self.polaris_workload.remove_file(certificate_path)
+            return deleted or removed_file
+
+        certificate_chain = "\n\n".join(certificates)
+        content_changed = self.polaris_workload.ensure_file(certificate_path, certificate_chain)
+        expected_aliases = {f"{alias_prefix}-{index}" for index in range(len(certificates))}
+        if not content_changed and current_aliases == expected_aliases:
+            return False
+
+        self.polaris_workload.delete_truststore_aliases_by_prefix(
+            alias_prefix,
+            password,
+        )
+
         try:
-            for index, certificate in enumerate(ca_chain):
-                self.polaris_workload.import_ca(
+            for index, certificate in enumerate(certificates):
+                self.polaris_workload.import_ca_certificate(
                     certificate,
                     password,
-                    alias=f"object-storage-ca-{index}",
+                    f"{alias_prefix}-{index}",
+                    certificate_path,
                 )
         except ops.pebble.ExecError as e:
-            if e.stdout and "already exists" in e.stdout:
-                return False
             self.logger.error(e.stdout)
             raise
 
-        self.logger.info("Object storage CA chain imported successfully")
+        self.logger.info("%s certificate chain imported successfully", alias_prefix)
         return True
-
-    def reset(self) -> bool:
-        """Remove object-storage TLS files from the Polaris workload."""
-        self.logger.info("Deleting object storage TLS files")
-        return self.polaris_workload.reset_object_storage_tls()
 
     def build_console_common_name(self) -> str:
         """Return the common name for the console TLS integration certificate request."""

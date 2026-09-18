@@ -16,7 +16,7 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-from .helpers import S3Info
+from .helpers import S3Info, TfDirManager
 from .supporting_charms import S3, Ingress, Metastore, SingleVariantCharmVersion, TLSProvider
 
 load_dotenv()
@@ -168,3 +168,12 @@ def s3_credentials(request: pytest.FixtureRequest) -> Generator[S3Info, None, No
             test_bucket.delete()
         except ClientError as e:
             logger.warning("Could not tear down test bucket: %s", e)
+
+
+@pytest.fixture(scope="module")
+def tf_manager(
+    request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
+) -> Generator[TfDirManager, None, None]:
+    base = tmp_path_factory.mktemp("terraform_base")
+    tf = TfDirManager(base)
+    yield tf

@@ -19,13 +19,13 @@ class ConsoleWorkload(WithLogging):
         self.fs = pathops.ContainerPath("/", container=container)
 
     def _console_layer(self, environment: dict[str, str] | None = None) -> ops.pebble.LayerDict:
-        # TODO(oauth): handle environment
         layer: ops.pebble.LayerDict = {
             "services": {
                 CONSOLE_SERVICE_NAME: {
                     "override": "merge",
                     "startup": "enabled",
                     "on-failure": "restart",
+                    "environment": environment or {},
                 }
             }
         }
@@ -60,6 +60,11 @@ class ConsoleWorkload(WithLogging):
             private_key,
         )
         return certificate_changed or private_key_changed
+
+    def current_environment(self) -> dict[str, str]:
+        """Return the current Pebble environment for the console service."""
+        service = self.container.get_plan().services.get(CONSOLE_SERVICE_NAME)
+        return service.environment if service else {}
 
     def remove_tls_assets(self) -> bool:
         """Remove console TLS certificate and private key."""

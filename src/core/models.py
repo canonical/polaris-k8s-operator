@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from functools import cached_property
-from typing import TYPE_CHECKING, Annotated, Any, final
+from typing import TYPE_CHECKING, Annotated, Any
 
 import ops
 from dpcharmlibs.interfaces import (
@@ -21,8 +21,8 @@ from dpcharmlibs.interfaces import (
 from pydantic import Field
 
 from core.constants import (
-    ADMIN_USER,
     POLARIS_METASTORE_DATABASE_NAME,
+    ROOT_PRINCIPAL_ID,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 
@@ -284,7 +284,102 @@ class Metastore:
         return bool(self.endpoint and self.username and self.password and self.database)
 
 
-@final
+class OAuth:
+    """State collection metadata for the oauth relation."""
+
+    # FIXME(identity): CA trust is expected to arrive through the dedicated oauth-ca relation.
+    # But once/if Hydra populates the ca_chain field in the databag, then we might prefer to get it
+    # from there?
+    def __init__(self, relation: ops.model.Relation | None, model: ops.model.Model) -> None:
+        self._relation = relation
+        self._model = model
+
+    @property
+    def relation_data(self) -> Mapping[str, str]:
+        """Return the oauth provider relation data."""
+        if not self._relation or not self._relation.app:
+            return {}
+        return self._relation.data[self._relation.app]
+
+    @property
+    def client_id(self) -> str:
+        """The OAuth client ID issued by the provider."""
+        return self.relation_data.get("client_id", "")
+
+    @property
+    def client_secret_id(self) -> str:
+        """The Juju secret id containing the OAuth client secret."""
+        return self.relation_data.get("client_secret_id", "")
+
+    def _client_secret_content(self) -> dict[str, str]:
+        """Return the OAuth client secret content."""
+        if not self.client_secret_id:
+            return {}
+
+        try:
+            return self._model.get_secret(id=self.client_secret_id).get_content(refresh=True)
+        except (ops.ModelError, ops.SecretNotFoundError):
+            logger.warning("Could not access oauth client secret")
+            return {}
+
+    @property
+    def client_secret(self) -> str:
+        """Client secret created by Hydra."""
+        return self._client_secret_content().get("secret", "")
+
+    @property
+    def issuer_url(self) -> str:
+        """The OIDC issuer URL of the provider."""
+        return self.relation_data.get("issuer_url", "")
+
+    @property
+    def authorization_endpoint(self) -> str:
+        """The endpoint used by browser-based authorization flows."""
+        return self.relation_data.get("authorization_endpoint", "")
+
+    @property
+    def token_endpoint(self) -> str:
+        """The endpoint used to exchange credentials for access tokens."""
+        return self.relation_data.get("token_endpoint", "")
+
+    @property
+    def introspection_endpoint(self) -> str:
+        """The introspection endpoint needed to validate non-JWT tokens."""
+        return self.relation_data.get("introspection_endpoint", "")
+
+    @property
+    def userinfo_endpoint(self) -> str:
+        """The endpoint used to fetch user information from the provider."""
+        return self.relation_data.get("userinfo_endpoint", "")
+
+    @property
+    def jwks_endpoint(self) -> str:
+        """The JWKS endpoint needed to validate JWT tokens."""
+        return self.relation_data.get("jwks_endpoint", "")
+
+    @property
+    def scope(self) -> str:
+        """The scopes advertised by the provider."""
+        return self.relation_data.get("scope", "")
+
+    @property
+    def groups(self) -> str:
+        """The groups claim name advertised by the provider, if any."""
+        return self.relation_data.get("groups", "")
+
+    @property
+    def jwt_access_token(self) -> bool:
+        """A flag indicating if the access token is JWT or not."""
+        return self.relation_data.get("jwt_access_token", "false").lower() == "true"
+
+    @property
+    def ready(self) -> bool:
+        """Return whether the oauth relation has the data needed by the current charm logic."""
+        return bool(
+            self.issuer_url and self.client_id and self.client_secret_id and self.client_secret
+        )
+
+
 class PolarisServer(RelationState):
     """State/Relation data collection for a unit."""
 
@@ -323,7 +418,6 @@ class PolarisServer(RelationState):
         self.update({"truststore_password": password})
 
 
-@final
 class PolarisCluster(RelationState):
     """State/Relation data collection for the Polaris application."""
 
@@ -348,7 +442,7 @@ class PolarisCluster(RelationState):
 
     def set_admin_password(self, password: str) -> None:
         """Update the admin password in peer app databag with given content."""
-        self.update({f"{ADMIN_USER}_password": password})
+        self.update({f"{ROOT_PRINCIPAL_ID}_password": password})
 
     @property
     def shared_key(self) -> str:

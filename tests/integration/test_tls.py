@@ -22,7 +22,7 @@ from pyiceberg.catalog import load_catalog
 from pyiceberg.schema import Schema
 from pyiceberg.types import LongType, NestedField, StringType
 
-from core.constants import ADMIN_USER, CONSOLE_PORT, CONSOLE_TLS_PORT, REALM
+from core.constants import CONSOLE_PORT, CONSOLE_TLS_PORT, REALM, ROOT_PRINCIPAL_ID
 
 from .helpers import (
     S3Info,
@@ -111,7 +111,7 @@ def test_polaris_management_api_is_reachable_over_https(
 
     principals = api.list_principals()
     assert len(principals.principals) == 1
-    assert principals.principals[0].client_id == ADMIN_USER
+    assert principals.principals[0].client_id == ROOT_PRINCIPAL_ID
 
     base_location = f"s3://{s3_credentials['bucket']}/{s3_credentials['path']}/{CATALOG_NAME}"
     api.create_catalog(
@@ -170,7 +170,7 @@ def test_polaris_catalog_write_read_over_https(
             "type": "rest",
             "uri": f"{base_url}/api/catalog",
             "warehouse": CATALOG_NAME,
-            "credential": f"{ADMIN_USER}:{admin_password_from_internal_secret(juju)}",
+            "credential": f"{ROOT_PRINCIPAL_ID}:{admin_password_from_internal_secret(juju)}",
             "oauth2-server-uri": f"{base_url}/api/catalog/v1/oauth/tokens",
             "scope": "PRINCIPAL_ROLE:ALL",
             "header.Polaris-Realm": REALM,

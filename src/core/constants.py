@@ -22,7 +22,9 @@ REALM = "POLARIS"
 # Files
 POLARIS_APPLICATION_PROPERTIES = "/etc/polaris/application.properties"
 OBJECT_STORAGE_CERTIFICATE = "/etc/polaris/object-storage-ca.pem"
-OBJECT_STORAGE_TRUSTSTORE = "/etc/polaris/object-storage-truststore.jks"
+OAUTH_CA_CERTIFICATE = "/etc/polaris/oauth-ca.pem"
+POLARIS_TRUSTSTORE = "/etc/polaris/polaris-truststore.jks"
+DEFAULT_JAVA_TRUSTSTORE = "/etc/ssl/certs/java/cacerts"
 SYMMETRIC_KEY = "/etc/polaris/symmetric.key"
 ROCK_METADATA = "/.rock/metadata.yaml"
 CONSOLE_TLS_CERTIFICATE = "/etc/nginx/tls/tls.crt"
@@ -30,16 +32,19 @@ CONSOLE_TLS_PRIVATE_KEY = "/etc/nginx/tls/tls.key"
 
 # Relation names
 METASTORE_RELATION_NAME = "metastore"
+OAUTH_RELATION_NAME = "oauth"
+OAUTH_CA_RELATION_NAME = "oauth-ca"
 PEERS_RELATION_NAME = "polaris-peers"
 S3_RELATION_NAME = "s3-credentials"
 STATUS_RELATION_NAME = "status-peers"
 TLS_RELATION_NAME = "client-certificates"
 
 # Misc.
-ADMIN_USER = "charmed-operator"
+ROOT_PRINCIPAL_ID = "charmed-operator"
 POLARIS_METASTORE_DATABASE_NAME = "polaris"
-OBJECT_STORAGE_CA_ALIAS = "object-storage-ca"
 POLARIS_BOOTSTRAP_COMMAND = ("/opt/polaris/bin/admin", "bootstrap")
 KEYTOOL = "keytool"
+DEFAULT_JAVA_TRUSTSTORE_PASSWORD = "changeit"
 SYSTEM_USER_SECRET_LABEL_SUFFIX = "system_user_secret"
 RANDOM_KEY_SIZE = 32
+OAUTH_CALLBACK_PATH = "/login"
