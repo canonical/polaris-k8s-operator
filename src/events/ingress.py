@@ -30,6 +30,7 @@ class IngressEvents(ops.Object, WithLogging):
         self.context._ingress_requirer = self.ingress
         self.framework.observe(self.charm.on["ingress"].relation_created, self._on_update)
         self.framework.observe(self.charm.on["ingress"].relation_changed, self._on_update)
+        self.framework.observe(self.charm.on["ingress"].relation_broken, self._on_update)
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle ingress-related events that may require relation data reconciliation."""

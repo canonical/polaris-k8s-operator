@@ -34,6 +34,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import LongType, NestedField, StringType
 
 from core.constants import CONSOLE_PORT, REALM, ROOT_PRINCIPAL_ID
+from events.oauth import OAuthStatuses
 
 from .helpers import (
     S3Info,
@@ -313,3 +314,34 @@ def test_oauth_external_user(
     assert external_catalog.load_table(identifier).scan().to_arrow().to_pylist() == [
         {"id": 1, "name": "one"}
     ]
+
+
+def test_remove_ingress_oauth_blocked(
+    juju: jubilant.Juju, ingress: SingleVariantCharmVersion
+) -> None:
+    """Removing the Polaris <-> Ingress relation blocks the charm.
+
+    On the ground that OAuth requires it.
+    """
+    juju.remove_relation(APP_NAME, ingress.app)
+    status = juju.wait(jubilant.all_agents_idle, delay=30)
+    app_status = status.apps[APP_NAME].app_status
+    assert app_status.current == "blocked"
+    assert OAuthStatuses.OAUTH_REQUIRES_INGRESS.message in app_status.message
+
+
+def test_remove_external_oauth(
+    juju: jubilant.Juju, tls_provider: SingleVariantCharmVersion
+) -> None:
+    """Removing the Polaris <-> OAuth integration still results in a functioning charm."""
+    juju.remove_relation(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
+    juju.remove_relation(f"{APP_NAME}:oauth-ca", tls_provider.app)
+
+    juju.wait(jubilant.all_active, delay=30)
+    admin_api = polaris_management_api(
+        juju,
+        app=APP_NAME,
+        client_id=ROOT_PRINCIPAL_ID,
+        verify_ssl=False,
+    )
+    assert admin_api.list_principals()

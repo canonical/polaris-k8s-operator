@@ -115,9 +115,6 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile OAuth relations and workload readiness prerequisites."""
-        if not self.context.oauth_relation:
-            return
-
         if not self.context.cluster.relation:
             self.logger.info("Peer relation not ready")
             if event:
