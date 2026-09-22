@@ -142,7 +142,6 @@ def test_integrate_iam(
     juju: jubilant.Juju,
     tls_provider: SingleVariantCharmVersion,
     s3_credentials: S3Info,
-    monkeypatch,
 ) -> None:
     """Integrate Polaris with the identity platform and set up catalog.
 
@@ -152,15 +151,9 @@ def test_integrate_iam(
       to trust the CA even if is used by Polaris' very own ingress. Hence, the second relation
       on oauth-ca.
     """
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", s3_credentials["access_key"])
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", s3_credentials["secret_key"])
-    monkeypatch.setenv("AWS_DEFAULT_REGION", s3_credentials["region"])
-    monkeypatch.setenv("AWS_REGION", s3_credentials["region"])
-    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
     juju.integrate(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
     juju.integrate(f"{APP_NAME}:oauth-ca", tls_provider.app)
-    juju.wait(jubilant.all_active, delay=30)
-    print(juju.status())
+    juju.wait(jubilant.all_active, delay=30, successes=5)
 
     admin_api = polaris_management_api(
         juju,
@@ -224,7 +217,9 @@ def test_integrate_iam(
             "header.Polaris-Realm": REALM,
             "header.X-Iceberg-Access-Delegation": "",
             "ssl": {"cabundle": False},
-            "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO",
+            "s3.access-key-id": s3_credentials["access_key"],
+            "s3.secret-access-key": s3_credentials["secret_key"],
+            "s3.path-style-access": "true",
             "s3.endpoint": s3_credentials["endpoint"],
             "s3.region": s3_credentials["region"],
         },
@@ -253,15 +248,8 @@ def test_oauth_external_user(
     juju: jubilant.Juju,
     ingress: SingleVariantCharmVersion,
     s3_credentials: S3Info,
-    monkeypatch,
 ) -> None:
     """Read a table through Polaris using an externally created Hydra client."""
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", s3_credentials["access_key"])
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", s3_credentials["secret_key"])
-    monkeypatch.setenv("AWS_DEFAULT_REGION", s3_credentials["region"])
-    monkeypatch.setenv("AWS_REGION", s3_credentials["region"])
-    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
-
     iam_juju = jubilant.Juju(model=IAM_MODEL)
     task = iam_juju.run(
         "hydra/leader",
@@ -306,7 +294,9 @@ def test_oauth_external_user(
             "header.Polaris-Realm": REALM,
             "header.X-Iceberg-Access-Delegation": "",
             "ssl": {"cabundle": False},
-            "py-io-impl": "pyiceberg.io.fsspec.FsspecFileIO",
+            "s3.access-key-id": s3_credentials["access_key"],
+            "s3.secret-access-key": s3_credentials["secret_key"],
+            "s3.path-style-access": "true",
             "s3.endpoint": s3_credentials["endpoint"],
             "s3.region": s3_credentials["region"],
         },
