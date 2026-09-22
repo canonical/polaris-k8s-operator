@@ -108,13 +108,11 @@ class PolarisWorkload(WithLogging):
 
     def import_ca_certificate(
         self,
-        certificate: str,
         password: str,
         alias: str,
         certificate_path: str,
     ) -> None:
         """Import a CA certificate into the Polaris truststore."""
-        pathops.ensure_contents(self.fs / certificate_path, certificate)
         process = self.container.exec(
             [
                 KEYTOOL,

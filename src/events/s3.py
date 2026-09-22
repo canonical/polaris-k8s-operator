@@ -13,7 +13,7 @@ from object_storage import (
     StorageConnectionInfoGoneEvent,
 )
 
-from core.constants import OBJECT_STORAGE_CERTIFICATE, S3_RELATION_NAME
+from core.constants import OBJECT_STORAGE_CERTIFICATE, POLARIS_CONTAINER_NAME, S3_RELATION_NAME
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
@@ -82,6 +82,10 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
         self.framework.observe(
             self.s3_requirer.on.storage_connection_info_gone, self._on_s3_credential_gone
         )
+        self.framework.observe(
+            self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
+            self._on_polaris_pebble_ready,
+        )
 
     def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile S3 relation data and workload configuration."""
@@ -123,6 +127,10 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
 
     def _on_s3_credential_changed(self, event: StorageConnectionInfoChangedEvent) -> None:
         """Handle the `StorageConnectionInfoChangedEvent` event from S3 integrator."""
+        self.reconcile(event)
+
+    def _on_polaris_pebble_ready(self, event: ops.EventBase) -> None:
+        """Handle the Polaris Pebble ready event."""
         self.reconcile(event)
 
     def _on_s3_credential_gone(self, event: StorageConnectionInfoGoneEvent) -> None:

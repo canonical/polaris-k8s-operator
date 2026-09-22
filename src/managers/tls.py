@@ -63,6 +63,7 @@ class TLSManager(WithLogging):
             for alias in self.polaris_workload.truststore_aliases(password)
             if alias.startswith(alias_prefix)
         }
+        certificate_import_path = f"{certificate_path}.import"
 
         if not certificates:
             self.logger.info("Deleting %s certificates", alias_prefix)
@@ -70,8 +71,9 @@ class TLSManager(WithLogging):
                 alias_prefix,
                 password,
             )
-            removed_file = self.polaris_workload.remove_file(certificate_path)
-            return deleted or removed_file
+            removed_chain_file = self.polaris_workload.remove_file(certificate_path)
+            removed_import_file = self.polaris_workload.remove_file(certificate_import_path)
+            return deleted or removed_chain_file or removed_import_file
 
         certificate_chain = "\n\n".join(certificates)
         content_changed = self.polaris_workload.ensure_file(certificate_path, certificate_chain)
@@ -86,15 +88,17 @@ class TLSManager(WithLogging):
 
         try:
             for index, certificate in enumerate(certificates):
+                self.polaris_workload.ensure_file(certificate_import_path, certificate)
                 self.polaris_workload.import_ca_certificate(
-                    certificate,
                     password,
                     f"{alias_prefix}-{index}",
-                    certificate_path,
+                    certificate_import_path,
                 )
         except ops.pebble.ExecError as e:
             self.logger.error(e.stdout)
             raise
+        finally:
+            self.polaris_workload.remove_file(certificate_import_path)
 
         self.logger.info("%s certificate chain imported successfully", alias_prefix)
         return True

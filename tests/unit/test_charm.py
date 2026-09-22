@@ -16,6 +16,8 @@ from core.constants import (
     CONSOLE_TLS_CERTIFICATE,
     CONSOLE_TLS_PORT,
     CONSOLE_TLS_PRIVATE_KEY,
+    OAUTH_CA_CERTIFICATE,
+    OBJECT_STORAGE_CERTIFICATE,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_CONTAINER_NAME,
@@ -26,6 +28,7 @@ from core.constants import (
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 from core.models import REQUIRED_S3_PARAMETERS
+from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreStatuses
 from events.polaris import SYSTEM_USER_SECRET_LABEL, CharmStatuses
 from events.s3 import ObjectStorageStatuses
@@ -41,6 +44,9 @@ UPDATED_USER_PASSWORD = "s3cr3t"
 INTERNAL_SYSTEM_USER_SECRET_LABEL = (
     f"{PEERS_RELATION_NAME}.polaris-k8s.app.{SYSTEM_USER_SECRET_LABEL_SUFFIX}"
 )
+CERTIFICATE_1 = """-----BEGIN CERTIFICATE-----
+MIIBtest-certificate-1
+-----END CERTIFICATE-----"""
 
 
 def _bootstrap_credentials_line(config: str) -> str:
@@ -968,3 +974,84 @@ def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed
         in config
     )
     assert (tmp_path / Path(SYMMETRIC_KEY).name).read_text() == "shared-key-value"
+
+
+def test_s3_reconciles_custom_ca_on_polaris_pebble_ready(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    s3_relation = replace(
+        s3_relation,
+        remote_app_data=dict(s3_relation.remote_app_data.items())
+        | {"tls-ca-chain": CERTIFICATE_1},
+    )
+    state = State(
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+
+    # When
+    with (
+        patch("managers.polaris.PolarisManager.update"),
+        patch(
+            "managers.tls.TLSManager.ensure_certificates_imported", return_value=False
+        ) as patched_import,
+    ):
+        polaris_context.run(polaris_context.on.pebble_ready(polaris_container), state)
+
+    # Then
+    patched_import.assert_any_call(
+        [CERTIFICATE_1],
+        "object-storage-ca",
+        OBJECT_STORAGE_CERTIFICATE,
+    )
+
+
+def test_oauth_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_container = Container(
+        name=polaris_container.name,
+        can_connect=polaris_container.can_connect,
+        mounts=polaris_container.mounts,
+        execs=polaris_container.execs,
+        service_statuses={next(iter(polaris_container.service_statuses)): ServiceStatus.INACTIVE},
+        layers=polaris_container.layers,
+    )
+    state = State(
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+
+    # When
+    with (
+        patch("managers.polaris.PolarisManager.update"),
+        patch.object(PolarisWorkload, "active", new_callable=PropertyMock, return_value=False),
+        patch(
+            "core.context.Context.oauth_ca_certificates",
+            new_callable=PropertyMock,
+            return_value={CERTIFICATE_1},
+        ),
+        patch(
+            "managers.tls.TLSManager.ensure_certificates_imported", return_value=False
+        ) as patched_import,
+    ):
+        polaris_context.run(polaris_context.on.pebble_ready(polaris_container), state)
+
+    # Then
+    patched_import.assert_any_call(
+        [CERTIFICATE_1],
+        "oauth-ca",
+        OAUTH_CA_CERTIFICATE,
+    )

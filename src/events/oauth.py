@@ -17,6 +17,7 @@ from core.constants import (
     OAUTH_CA_RELATION_NAME,
     OAUTH_CALLBACK_PATH,
     OAUTH_RELATION_NAME,
+    POLARIS_CONTAINER_NAME,
 )
 from core.context import Context
 from core.logging import WithLogging
@@ -95,6 +96,10 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.framework.observe(self.oauth.on.invalid_client_config, self._on_update)
         self.framework.observe(self.cert_transfer.on.certificate_set_updated, self._on_update)
         self.framework.observe(self.cert_transfer.on.certificates_removed, self._on_update)
+        self.framework.observe(
+            self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
+            self._on_update,
+        )
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle oauth-related events that may require reconciliation."""
@@ -121,21 +126,21 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        if not self.polaris_workload.active or not self.console_workload.ready:
-            # We need an active polaris so that we can create the oidc user
+        if not self.polaris_workload.ready or not self.console_workload.ready:
             self.logger.info("Workloads not ready")
             if event:
                 event.defer()
             return
-
-        if client_config := self.oauth_client_config():
-            self.oauth.update_client_config(client_config)
 
         force_restart = self.tls_manager.ensure_certificates_imported(
             sorted(self.context.oauth_ca_certificates),
             "oauth-ca",
             OAUTH_CA_CERTIFICATE,
         )
+
+        if client_config := self.oauth_client_config():
+            self.oauth.update_client_config(client_config)
+
         self.console_manager.update()
         self.polaris_manager.update(force_restart=force_restart)
 
