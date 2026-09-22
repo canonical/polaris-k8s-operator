@@ -33,7 +33,7 @@ from pyiceberg.catalog import load_catalog
 from pyiceberg.schema import Schema
 from pyiceberg.types import LongType, NestedField, StringType
 
-from core.constants import CONSOLE_PORT, REALM, ROOT_PRINCIPAL_ID
+from core.constants import CONSOLE_PORT, CONSOLE_TLS_PORT, REALM, ROOT_PRINCIPAL_ID
 from events.oauth import OAuthStatuses
 
 from .helpers import (
@@ -154,13 +154,8 @@ def test_integrate_iam(
     juju.integrate(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
     juju.integrate(f"{APP_NAME}:oauth-ca", tls_provider.app)
     juju.wait(jubilant.all_active, delay=30, successes=5)
+    admin_api = polaris_management_api(juju, port=CONSOLE_TLS_PORT, verify_ssl=False)
 
-    admin_api = polaris_management_api(
-        juju,
-        app=APP_NAME,
-        client_id=ROOT_PRINCIPAL_ID,
-        verify_ssl=False,
-    )
     base_location = f"s3://{s3_credentials['bucket']}/{s3_credentials['path']}/{CATALOG_NAME}"
     admin_api.create_catalog(
         CreateCatalogRequest(
@@ -314,7 +309,7 @@ def test_remove_ingress_oauth_blocked(
     On the ground that OAuth requires it.
     """
     juju.remove_relation(APP_NAME, ingress.app)
-    status = juju.wait(jubilant.all_agents_idle, delay=30)
+    status = juju.wait(jubilant.all_agents_idle, delay=10)
     app_status = status.apps[APP_NAME].app_status
     assert app_status.current == "blocked"
     assert OAuthStatuses.OAUTH_REQUIRES_INGRESS.message in app_status.message
@@ -324,14 +319,10 @@ def test_remove_external_oauth(
     juju: jubilant.Juju, tls_provider: SingleVariantCharmVersion
 ) -> None:
     """Removing the Polaris <-> OAuth integration still results in a functioning charm."""
-    juju.remove_relation(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
+    juju.remove_relation(APP_NAME, "oauth-offer")
     juju.remove_relation(f"{APP_NAME}:oauth-ca", tls_provider.app)
 
     juju.wait(jubilant.all_active, delay=30)
-    admin_api = polaris_management_api(
-        juju,
-        app=APP_NAME,
-        client_id=ROOT_PRINCIPAL_ID,
-        verify_ssl=False,
-    )
+    admin_api = polaris_management_api(juju, port=CONSOLE_TLS_PORT, verify_ssl=False)
+
     assert admin_api.list_principals()

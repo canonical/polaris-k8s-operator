@@ -84,7 +84,7 @@ class PolarisManager(WithLogging):
             self.logger.info("Skipping workload restart, object storage is not ready")
             return
 
-        self.logger.info("Restarting Polaris workload")
+        self.logger.info("Updating Polaris workload configuration")
 
         config = PolarisConfig(context=self.context)
         config_changed = any(
