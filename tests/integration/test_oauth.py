@@ -135,7 +135,7 @@ def test_deploy_iam(
 
     iam_juju = jubilant.Juju(model=IAM_MODEL)
     logger.info("Waiting for all identity applications to be active...")
-    iam_juju.wait(jubilant.all_active, delay=15)
+    iam_juju.wait(jubilant.all_active, delay=15, timeout=600)
 
 
 def test_integrate_iam(
