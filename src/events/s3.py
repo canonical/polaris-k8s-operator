@@ -34,11 +34,6 @@ class _ObjectStorageStatuses:
         status="waiting",
         message="Waiting for object storage relation data",
     )
-    IMPORTING_OBJECT_STORAGE_CA = StatusObject(
-        status="maintenance",
-        message="Importing object storage CA certificate",
-        running="blocking",
-    )
 
     @staticmethod
     def missing_parameters(fields: list[str]) -> StatusObject:
@@ -105,24 +100,11 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
             self.logger.info("Object storage relation not ready")
             return
 
-        force_restart = False
-        if self.context.s3.has_custom_ca:
-            self.charm.status.set_running_status(
-                ObjectStorageStatuses.IMPORTING_OBJECT_STORAGE_CA,
-                scope="unit",
-            )
-            force_restart = self.tls_manager.ensure_certificates_imported(
-                self.context.s3.tls_ca_chain,
-                "object-storage-ca",
-                OBJECT_STORAGE_CERTIFICATE,
-            )
-        else:
-            force_restart = self.tls_manager.ensure_certificates_imported(
-                [],
-                "object-storage-ca",
-                OBJECT_STORAGE_CERTIFICATE,
-            )
-
+        force_restart = self.tls_manager.ensure_certificates_imported(
+            self.context.s3.tls_ca_chain,
+            "object-storage-ca",
+            OBJECT_STORAGE_CERTIFICATE,
+        )
         self.polaris_manager.update(force_restart=force_restart)
 
     def _on_s3_credential_changed(self, event: StorageConnectionInfoChangedEvent) -> None:
