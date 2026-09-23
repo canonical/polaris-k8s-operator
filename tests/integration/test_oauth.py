@@ -154,7 +154,7 @@ def test_integrate_iam(
     juju.integrate(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
     juju.integrate(f"{APP_NAME}:oauth-ca", tls_provider.app)
     juju.wait(jubilant.all_active, delay=30, successes=5)
-    admin_api = polaris_management_api(juju, port=CONSOLE_TLS_PORT, verify_ssl=False)
+    admin_api = polaris_management_api(juju)
 
     base_location = f"s3://{s3_credentials['bucket']}/{s3_credentials['path']}/{CATALOG_NAME}"
     admin_api.create_catalog(
@@ -258,12 +258,7 @@ def test_oauth_external_user(
     )
     client_id = task.results["client-id"]
     client_secret = task.results["client-secret"]
-    admin_api = polaris_management_api(
-        juju,
-        app=APP_NAME,
-        client_id=ROOT_PRINCIPAL_ID,
-        verify_ssl=False,
-    )
+    admin_api = polaris_management_api(juju)
 
     admin_api.create_principal(CreatePrincipalRequest(principal=Principal(name=client_id)))
     admin_api.assign_principal_role(
@@ -323,6 +318,6 @@ def test_remove_external_oauth(
     juju.remove_relation(f"{APP_NAME}:oauth-ca", tls_provider.app)
 
     juju.wait(jubilant.all_active, delay=30)
-    admin_api = polaris_management_api(juju, port=CONSOLE_TLS_PORT, verify_ssl=False)
+    admin_api = polaris_management_api(juju)
 
     assert admin_api.list_principals()
