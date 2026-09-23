@@ -79,7 +79,7 @@ requires:
     limit: 1
     optional: true
 
-  oauth-ca:
+  receive-ca-certs:
     interface: certificate_transfer
     limit: 1
     optional: true
