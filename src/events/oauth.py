@@ -89,10 +89,6 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.framework.observe(self.oauth.on.oauth_info_changed, self._on_update)
         self.framework.observe(self.oauth.on.oauth_info_removed, self._on_update)
         self.framework.observe(self.oauth.on.invalid_client_config, self._on_update)
-        self.framework.observe(
-            self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
-            self._on_update,
-        )
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle oauth-related events that may require reconciliation."""

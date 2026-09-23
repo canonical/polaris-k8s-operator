@@ -12,11 +12,11 @@ from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secre
 
 from charm import PolarisK8sCharm
 from core.constants import (
+    ADDITIONAL_CA_CERTIFICATE,
     CONSOLE_PORT,
     CONSOLE_TLS_CERTIFICATE,
     CONSOLE_TLS_PORT,
     CONSOLE_TLS_PRIVATE_KEY,
-    OAUTH_CA_CERTIFICATE,
     OBJECT_STORAGE_CERTIFICATE,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
@@ -1012,7 +1012,7 @@ def test_s3_reconciles_custom_ca_on_polaris_pebble_ready(
     )
 
 
-def test_oauth_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
+def test_charm_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
     console_container: Container,
     polaris_container: Container,
     polaris_context: Context[PolarisK8sCharm],
@@ -1039,7 +1039,7 @@ def test_oauth_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
         patch("managers.polaris.PolarisManager.update"),
         patch.object(PolarisWorkload, "active", new_callable=PropertyMock, return_value=False),
         patch(
-            "core.context.Context.oauth_ca_certificates",
+            "core.context.Context.additional_ca_certificates",
             new_callable=PropertyMock,
             return_value={CERTIFICATE_1},
         ),
@@ -1053,5 +1053,5 @@ def test_oauth_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
     patched_import.assert_any_call(
         [CERTIFICATE_1],
         "additional-ca",
-        OAUTH_CA_CERTIFICATE,
+        ADDITIONAL_CA_CERTIFICATE,
     )

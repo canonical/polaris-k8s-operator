@@ -10,6 +10,7 @@ from charmlibs.interfaces.certificate_transfer import CertificateTransferRequire
 
 from core.constants import (
     ADDITIONAL_CA_CERTIFICATE,
+    POLARIS_CONTAINER_NAME,
     RECEIVE_CERTS_RELATION_NAME,
 )
 from core.context import Context
@@ -46,6 +47,10 @@ class CertificatesTransferEvents(ops.Object, WithLogging):
         self.context._additional_ca_requirer = self.cert_transfer
         self.framework.observe(self.cert_transfer.on.certificate_set_updated, self._on_update)
         self.framework.observe(self.cert_transfer.on.certificates_removed, self._on_update)
+        self.framework.observe(
+            self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
+            self._on_update,
+        )
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle oauth-related events that may require reconciliation."""
