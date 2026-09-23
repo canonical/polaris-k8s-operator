@@ -5,8 +5,11 @@
 
 import ipaddress
 import secrets
+import socket
+import ssl
 import string
 from typing import Sequence, cast
+from urllib.parse import urlparse
 
 import ops
 from charmlibs.interfaces.tls_certificates import CertificateRequestAttributes
@@ -144,3 +147,32 @@ class TLSManager(WithLogging):
             sans_dns=self.build_console_sans_dns(),
             sans_ip=self.build_console_sans_ip(),
         )
+
+    def check_endpoint_verified(
+        self, endpoint_url: str, ca_certs: set[str], trust_system_cas: bool = True
+    ) -> bool:
+        """Check if we can verify and reach out an external endpoint."""
+        parsed = urlparse(endpoint_url)
+        hostname = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+        ca_data = "\n".join(ca_certs)
+
+        if trust_system_cas:
+            context = ssl.create_default_context()
+        else:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.verify_mode = ssl.CERT_REQUIRED
+            context.check_hostname = True
+
+        if ca_data:
+            context.load_verify_locations(cadata=ca_data)
+
+        try:
+            with socket.create_connection((hostname, port), timeout=5) as sock:
+                with context.wrap_socket(sock, server_hostname=hostname):
+                    return True
+        except ssl.SSLCertVerificationError:
+            return False
+        except Exception:
+            return False

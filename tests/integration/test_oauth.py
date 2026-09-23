@@ -152,8 +152,14 @@ def test_integrate_iam(
       on receive-ca-certs.
     """
     juju.integrate(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
+
+    status = juju.wait(lambda status: jubilant.all_blocked(status, APP_NAME), delay=30)
+    app_status = status.apps[APP_NAME].app_status
+    assert OAuthStatuses.OAUTH_PROVIDER_UNREACHABLE.message in app_status.message
+
     juju.integrate(f"{APP_NAME}:receive-ca-certs", tls_provider.app)
     juju.wait(jubilant.all_active, delay=30, successes=5)
+
     admin_api = polaris_management_api(juju)
 
     base_location = f"s3://{s3_credentials['bucket']}/{s3_credentials['path']}/{CATALOG_NAME}"

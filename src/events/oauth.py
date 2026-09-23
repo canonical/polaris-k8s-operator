@@ -14,7 +14,6 @@ from data_platform_helpers.advanced_statuses.types import Scope
 from core.constants import (
     OAUTH_CALLBACK_PATH,
     OAUTH_RELATION_NAME,
-    POLARIS_CONTAINER_NAME,
 )
 from core.context import Context
 from core.logging import WithLogging
@@ -45,6 +44,11 @@ class _OAuthStatuses:
     OAUTH_PROVIDER_NOT_READY = StatusObject(
         status="waiting",
         message="Waiting for OAuth provider metadata and client credentials",
+    )
+    OAUTH_PROVIDER_UNREACHABLE = StatusObject(
+        status="blocked",
+        message="OAuth provider unreachable or untrusted",
+        action="Relate the charm to the receive-ca-certs issuer",
     )
 
 
@@ -143,5 +147,10 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
         if not self.context.oauth.ready:
             return [OAuthStatuses.OAUTH_PROVIDER_NOT_READY]
+
+        if not self.tls_manager.check_endpoint_verified(
+            self.context.oauth.issuer_url, self.context.additional_ca_certificates
+        ):
+            return [OAuthStatuses.OAUTH_PROVIDER_UNREACHABLE]
 
         return []
