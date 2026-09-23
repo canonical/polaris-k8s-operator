@@ -21,9 +21,9 @@ from pydantic import ValidationError
 from config.charm import PolarisCharmConfig
 from core.constants import (
     METASTORE_RELATION_NAME,
-    OAUTH_CA_RELATION_NAME,
     OAUTH_RELATION_NAME,
     PEERS_RELATION_NAME,
+    RECEIVE_CERTS_RELATION_NAME,
     S3_RELATION_NAME,
     STATUS_RELATION_NAME,
     TLS_RELATION_NAME,
@@ -54,7 +54,7 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
     _s3_requirer: S3Requirer
     _tls_certificates_requirer: TLSCertificatesRequiresV4
     _ingress_requirer: IngressPerAppRequirer
-    _oauth_ca_requirer: CertificateTransferRequires
+    _additional_ca_requirer: CertificateTransferRequires
 
     def __init__(self, charm: ops.CharmBase) -> None:
         super().__init__(charm, "charm_context")
@@ -164,16 +164,16 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         return self.model.get_relation(OAUTH_RELATION_NAME)
 
     @property
-    def oauth_ca_relation(self) -> ops.model.Relation | None:
-        """Get the oauth-ca relation."""
-        return self.model.get_relation(OAUTH_CA_RELATION_NAME)
+    def receive_ca_certs_relation(self) -> ops.model.Relation | None:
+        """Get the receive-ca-certs relation."""
+        return self.model.get_relation(RECEIVE_CERTS_RELATION_NAME)
 
     @property
-    def oauth_ca_certificates(self) -> set[str]:
-        """Get certificates transferred on the oauth-ca relation."""
-        if not hasattr(self, "_oauth_ca_requirer") or not self.oauth_ca_relation:
+    def additional_ca_certificates(self) -> set[str]:
+        """Get certificates transferred on the receive-ca-certs relation."""
+        if not hasattr(self, "_additional_ca_requirer") or not self.receive_ca_certs_relation:
             return set()
-        return self._oauth_ca_requirer.get_all_certificates(self.oauth_ca_relation.id)
+        return self._additional_ca_requirer.get_all_certificates(self.receive_ca_certs_relation.id)
 
     @property
     def s3_relation(self) -> ops.model.Relation | None:

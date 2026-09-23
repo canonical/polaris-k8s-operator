@@ -29,6 +29,7 @@ from core.constants import (
 from core.context import Context
 from core.workload.console import ConsoleWorkload
 from core.workload.polaris import PolarisWorkload
+from events.certificates_transfer import CertificatesTransferEvents
 from events.ingress import IngressEvents
 from events.metastore import MetastoreEvents
 from events.oauth import OAuthEvents
@@ -92,6 +93,10 @@ class PolarisK8sCharm(ops.CharmBase):
             cast(CharmWithReconcile, self), self.context, self.console_workload
         )
         self.ingress_events = IngressEvents(cast(CharmWithReconcile, self), self.context)
+        self.certificate_transfer_events = CertificatesTransferEvents(
+            self, self.context, self.polaris_workload
+        )
+
         self.oauth_events = OAuthEvents(
             self, self.context, self.polaris_workload, self.console_workload
         )

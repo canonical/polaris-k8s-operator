@@ -6,15 +6,12 @@
 from __future__ import annotations
 
 import ops
-from charmlibs.interfaces.certificate_transfer import CertificateTransferRequires
 from charmlibs.interfaces.oauth import ClientConfig, OAuthRequirer
 from data_platform_helpers.advanced_statuses.models import StatusObject
 from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtocol
 from data_platform_helpers.advanced_statuses.types import Scope
 
 from core.constants import (
-    OAUTH_CA_CERTIFICATE,
-    OAUTH_CA_RELATION_NAME,
     OAUTH_CALLBACK_PATH,
     OAUTH_RELATION_NAME,
     POLARIS_CONTAINER_NAME,
@@ -80,8 +77,6 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
         client_config = None
         self.oauth = OAuthRequirer(self.charm, client_config, relation_name=OAUTH_RELATION_NAME)
-        self.cert_transfer = CertificateTransferRequires(self.charm, OAUTH_CA_RELATION_NAME)
-        self.context._oauth_ca_requirer = self.cert_transfer
         self.polaris_manager = PolarisManager(
             self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
         )
@@ -94,8 +89,6 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.framework.observe(self.oauth.on.oauth_info_changed, self._on_update)
         self.framework.observe(self.oauth.on.oauth_info_removed, self._on_update)
         self.framework.observe(self.oauth.on.invalid_client_config, self._on_update)
-        self.framework.observe(self.cert_transfer.on.certificate_set_updated, self._on_update)
-        self.framework.observe(self.cert_transfer.on.certificates_removed, self._on_update)
         self.framework.observe(
             self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
             self._on_update,
@@ -132,17 +125,11 @@ class OAuthEvents(ops.Object, WithLogging, ManagerStatusProtocol):
                 event.defer()
             return
 
-        force_restart = self.tls_manager.ensure_certificates_imported(
-            sorted(self.context.oauth_ca_certificates),
-            "oauth-ca",
-            OAUTH_CA_CERTIFICATE,
-        )
-
         if client_config := self.oauth_client_config():
             self.oauth.update_client_config(client_config)
 
         self.console_manager.update()
-        self.polaris_manager.update(force_restart=force_restart)
+        self.polaris_manager.update()
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:
         """Return the list of statuses for this component."""

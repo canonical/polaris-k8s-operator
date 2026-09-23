@@ -33,7 +33,7 @@ from pyiceberg.catalog import load_catalog
 from pyiceberg.schema import Schema
 from pyiceberg.types import LongType, NestedField, StringType
 
-from core.constants import CONSOLE_PORT, CONSOLE_TLS_PORT, REALM, ROOT_PRINCIPAL_ID
+from core.constants import CONSOLE_PORT, REALM, ROOT_PRINCIPAL_ID
 from events.oauth import OAuthStatuses
 
 from .helpers import (
@@ -149,10 +149,10 @@ def test_integrate_iam(
     - The terraform bundle creates a "admin/iam.oauth-offer" offer
     - We use a single TLS provider and ingress for Polaris and Hydra. But we still need Polaris
       to trust the CA even if is used by Polaris' very own ingress. Hence, the second relation
-      on oauth-ca.
+      on receive-ca-certs.
     """
     juju.integrate(APP_NAME, f"admin/{IAM_MODEL}.oauth-offer")
-    juju.integrate(f"{APP_NAME}:oauth-ca", tls_provider.app)
+    juju.integrate(f"{APP_NAME}:receive-ca-certs", tls_provider.app)
     juju.wait(jubilant.all_active, delay=30, successes=5)
     admin_api = polaris_management_api(juju)
 
@@ -315,7 +315,7 @@ def test_remove_external_oauth(
 ) -> None:
     """Removing the Polaris <-> OAuth integration still results in a functioning charm."""
     juju.remove_relation(APP_NAME, "oauth-offer")
-    juju.remove_relation(f"{APP_NAME}:oauth-ca", tls_provider.app)
+    juju.remove_relation(f"{APP_NAME}:receive-ca-certs", tls_provider.app)
 
     juju.wait(jubilant.all_active, delay=30)
     admin_api = polaris_management_api(juju)

@@ -1052,6 +1052,6 @@ def test_oauth_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
     # Then
     patched_import.assert_any_call(
         [CERTIFICATE_1],
-        "oauth-ca",
+        "additional-ca",
         OAUTH_CA_CERTIFICATE,
     )

@@ -81,7 +81,7 @@ def test_tls_manager_is_idempotent_for_multi_certificate_chain() -> None:
     )
     third = manager.ensure_certificates_imported(
         [CERTIFICATE_1, CERTIFICATE_2],
-        "oauth-ca",  # Different kind, should be flagged
+        "additional-ca",  # Different kind, should be flagged
         OBJECT_STORAGE_CERTIFICATE,
     )
 
