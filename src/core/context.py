@@ -21,7 +21,9 @@ from pydantic import ValidationError
 from config.charm import PolarisCharmConfig
 from core.constants import (
     METASTORE_RELATION_NAME,
+    OAUTH_RELATION_NAME,
     PEERS_RELATION_NAME,
+    RECEIVE_CERTS_RELATION_NAME,
     S3_RELATION_NAME,
     STATUS_RELATION_NAME,
     TLS_RELATION_NAME,
@@ -30,6 +32,7 @@ from core.logging import WithLogging
 from core.models import (
     ConsoleTLS,
     Metastore,
+    OAuth,
     PeerAppModel,
     PeerUnitModel,
     PolarisCluster,
@@ -38,7 +41,9 @@ from core.models import (
 )
 
 if TYPE_CHECKING:
+    from charmlibs.interfaces.certificate_transfer import CertificateTransferRequires
     from charmlibs.interfaces.tls_certificates import TLSCertificatesRequiresV4
+    from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
     from object_storage import S3Requirer
 
 
@@ -48,6 +53,8 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
     # These elements are injected by integration event handlers to avoid duplicated side-effects
     _s3_requirer: S3Requirer
     _tls_certificates_requirer: TLSCertificatesRequiresV4
+    _ingress_requirer: IngressPerAppRequirer
+    _additional_ca_requirer: CertificateTransferRequires
 
     def __init__(self, charm: ops.CharmBase) -> None:
         super().__init__(charm, "charm_context")
@@ -107,6 +114,36 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         }
 
     @property
+    def unit_server(self) -> PolarisServer:
+        """Get the server state of this unit."""
+        return PolarisServer(
+            relation=self.peer_relation,
+            data_interface=self.peer_unit_interface,
+            component=self.model.unit,
+        )
+
+    @property
+    def cluster(self) -> PolarisCluster:
+        """Get the cluster state of the entire Polaris deployment."""
+        return PolarisCluster(
+            relation=self.peer_relation,
+            data_interface=self.peer_app_interface,
+            component=self.model.app,
+        )
+
+    @property
+    def ingress_relation(self) -> ops.model.Relation | None:
+        """Get the ingress relation."""
+        return self.model.get_relation("ingress")
+
+    @property
+    def ingress_url(self) -> str:
+        """Get the externally reachable ingress URL, if known."""
+        if not hasattr(self, "_ingress_requirer"):
+            return ""
+        return self._ingress_requirer.url or ""
+
+    @property
     def metastore_relation(self) -> ops.model.Relation | None:
         """Get the metastore relation."""
         return self.model.get_relation(METASTORE_RELATION_NAME)
@@ -115,6 +152,28 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
     def metastore(self) -> Metastore:
         """Get the metastore relation state."""
         return Metastore(relation=self.metastore_relation, model=self.charm.model)
+
+    @property
+    def oauth(self) -> OAuth:
+        """Get the oauth relation state."""
+        return OAuth(relation=self.oauth_relation, model=self.charm.model)
+
+    @property
+    def oauth_relation(self) -> ops.model.Relation | None:
+        """Get the oauth relation."""
+        return self.model.get_relation(OAUTH_RELATION_NAME)
+
+    @property
+    def receive_ca_cert_relations(self) -> list[ops.model.Relation]:
+        """Get the receive-ca-cert relation."""
+        return self.model.relations.get(RECEIVE_CERTS_RELATION_NAME, [])
+
+    @property
+    def additional_ca_certificates(self) -> set[str]:
+        """Get certificates transferred on the receive-ca-cert relations."""
+        if not hasattr(self, "_additional_ca_requirer") or not self.receive_ca_cert_relations:
+            return set()
+        return self._additional_ca_requirer.get_all_certificates()
 
     @property
     def s3_relation(self) -> ops.model.Relation | None:
@@ -139,22 +198,4 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         return ConsoleTLS(
             relation=self.tls_relation,
             certificates_requirer=getattr(self, "_tls_certificates_requirer", None),
-        )
-
-    @property
-    def unit_server(self) -> PolarisServer:
-        """Get the server state of this unit."""
-        return PolarisServer(
-            relation=self.peer_relation,
-            data_interface=self.peer_unit_interface,
-            component=self.model.unit,
-        )
-
-    @property
-    def cluster(self) -> PolarisCluster:
-        """Get the cluster state of the entire Polaris deployment."""
-        return PolarisCluster(
-            relation=self.peer_relation,
-            data_interface=self.peer_app_interface,
-            component=self.model.app,
         )

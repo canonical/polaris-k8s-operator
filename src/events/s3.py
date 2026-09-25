@@ -13,7 +13,7 @@ from object_storage import (
     StorageConnectionInfoGoneEvent,
 )
 
-from core.constants import S3_RELATION_NAME
+from core.constants import OBJECT_STORAGE_CERTIFICATE, POLARIS_CONTAINER_NAME, S3_RELATION_NAME
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
@@ -33,11 +33,6 @@ class _ObjectStorageStatuses:
     OBJECT_STORAGE_NOT_READY = StatusObject(
         status="waiting",
         message="Waiting for object storage relation data",
-    )
-    IMPORTING_OBJECT_STORAGE_CA = StatusObject(
-        status="maintenance",
-        message="Importing object storage CA certificate",
-        running="blocking",
     )
 
     @staticmethod
@@ -82,6 +77,10 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
         self.framework.observe(
             self.s3_requirer.on.storage_connection_info_gone, self._on_s3_credential_gone
         )
+        self.framework.observe(
+            self.charm.on[POLARIS_CONTAINER_NAME].pebble_ready,
+            self._on_polaris_pebble_ready,
+        )
 
     def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile S3 relation data and workload configuration."""
@@ -101,25 +100,28 @@ class S3Events(ops.Object, WithLogging, ManagerStatusProtocol):
             self.logger.info("Object storage relation not ready")
             return
 
-        force_restart = False
-        if self.context.s3.has_custom_ca:
-            self.charm.status.set_running_status(
-                ObjectStorageStatuses.IMPORTING_OBJECT_STORAGE_CA,
-                scope="unit",
-            )
-            force_restart = self.tls_manager.ensure_ca_chain_imported(self.context.s3.tls_ca_chain)
-        else:
-            force_restart = self.tls_manager.reset()
-
+        force_restart = self.tls_manager.ensure_certificates_imported(
+            self.context.s3.tls_ca_chain,
+            "object-storage-ca",
+            OBJECT_STORAGE_CERTIFICATE,
+        )
         self.polaris_manager.update(force_restart=force_restart)
 
     def _on_s3_credential_changed(self, event: StorageConnectionInfoChangedEvent) -> None:
         """Handle the `StorageConnectionInfoChangedEvent` event from S3 integrator."""
         self.reconcile(event)
 
+    def _on_polaris_pebble_ready(self, event: ops.EventBase) -> None:
+        """Handle the Polaris Pebble ready event."""
+        self.reconcile(event)
+
     def _on_s3_credential_gone(self, event: StorageConnectionInfoGoneEvent) -> None:
         """Handle the `StorageConnectionInfoGoneEvent` event for S3 integrator."""
-        self.tls_manager.reset()
+        self.tls_manager.ensure_certificates_imported(
+            [],
+            "object-storage-ca",
+            OBJECT_STORAGE_CERTIFICATE,
+        )
         self.reconcile(event)
 
     def get_statuses(self, scope: Scope, recompute: bool = False) -> list[StatusObject]:

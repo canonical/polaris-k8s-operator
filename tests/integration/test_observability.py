@@ -2,21 +2,15 @@
 # See LICENSE file for licensing details.
 
 import logging
-import os
-import shlex
-import shutil
-import subprocess
 from pathlib import Path
-from typing import Generator
 from urllib.parse import urlencode
 
 import httpx2
 import jubilant
-import pytest
 import yaml
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
-from .helpers import S3Info, set_s3_credentials
+from .helpers import S3Info, TfDirManager, set_s3_credentials
 from .supporting_charms import SingleVariantCharmVersion
 
 logger = logging.getLogger(__name__)
@@ -27,48 +21,6 @@ COS_LITE_TF = Path.cwd() / "tests/integration/resources/cos-lite/main.tf"
 LOKI = "loki"
 PROMETHEUS = "prometheus"
 GRAFANA = "grafana"
-
-
-class TfDirManager:
-    """Taken from https://github.com/canonical/observability-stack."""
-
-    def __init__(self, base_tmpdir):
-        self.base: str = str(base_tmpdir)
-        self.dir: str = ""
-
-    @property
-    def tf_cmd(self):
-        return f"terraform -chdir={self.dir}"
-
-    def init(self, tf_file: str):
-        """Initialize a Terraform module in a subdirectory."""
-        self.dir = os.path.join(self.base, "terraform")
-        os.makedirs(self.dir, exist_ok=True)
-        shutil.copy(tf_file, os.path.join(self.dir, "main.tf"))
-        subprocess.run(shlex.split(f"{self.tf_cmd} init -upgrade"), check=True)
-
-    @staticmethod
-    def _args_str(target: str | None = None, **kwargs) -> str:
-        target_arg = f"-target module.{target}" if target else ""
-        var_args = " ".join(f"-var {k}={v}" for k, v in kwargs.items())
-        return "-auto-approve " + f"{target_arg} " + var_args
-
-    def apply(self, target: str | None = None, **kwargs):
-        cmd_str = f"{self.tf_cmd} apply " + self._args_str(target, **kwargs)
-        subprocess.run(shlex.split(cmd_str), check=True)
-
-    def destroy(self, **kwargs):
-        cmd_str = f"{self.tf_cmd} destroy " + self._args_str(None, **kwargs)
-        subprocess.run(shlex.split(cmd_str), check=True)
-
-
-@pytest.fixture(scope="module")
-def tf_manager(
-    request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
-) -> Generator[TfDirManager, None, None]:
-    base = tmp_path_factory.mktemp("terraform_base")
-    tf = TfDirManager(base)
-    yield tf
 
 
 def get_grafana_access(juju: jubilant.Juju) -> tuple[str, str]:
