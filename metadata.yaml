@@ -81,7 +81,6 @@ requires:
 
   receive-ca-cert:
     interface: certificate_transfer
-    limit: 1
     optional: true
 
   s3-credentials:
