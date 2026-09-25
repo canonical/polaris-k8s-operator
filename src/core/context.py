@@ -164,16 +164,16 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         return self.model.get_relation(OAUTH_RELATION_NAME)
 
     @property
-    def receive_ca_certs_relation(self) -> ops.model.Relation | None:
-        """Get the receive-ca-certs relation."""
+    def receive_ca_cert_relation(self) -> ops.model.Relation | None:
+        """Get the receive-ca-cert relation."""
         return self.model.get_relation(RECEIVE_CERTS_RELATION_NAME)
 
     @property
     def additional_ca_certificates(self) -> set[str]:
-        """Get certificates transferred on the receive-ca-certs relation."""
-        if not hasattr(self, "_additional_ca_requirer") or not self.receive_ca_certs_relation:
+        """Get certificates transferred on the receive-ca-cert relation."""
+        if not hasattr(self, "_additional_ca_requirer") or not self.receive_ca_cert_relation:
             return set()
-        return self._additional_ca_requirer.get_all_certificates(self.receive_ca_certs_relation.id)
+        return self._additional_ca_requirer.get_all_certificates(self.receive_ca_cert_relation.id)
 
     @property
     def s3_relation(self) -> ops.model.Relation | None:

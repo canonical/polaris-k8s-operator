@@ -33,7 +33,7 @@ CONSOLE_TLS_PRIVATE_KEY = "/etc/nginx/tls/tls.key"
 # Relation names
 METASTORE_RELATION_NAME = "metastore"
 OAUTH_RELATION_NAME = "oauth"
-RECEIVE_CERTS_RELATION_NAME = "receive-ca-certs"
+RECEIVE_CERTS_RELATION_NAME = "receive-ca-cert"
 PEERS_RELATION_NAME = "polaris-peers"
 S3_RELATION_NAME = "s3-credentials"
 STATUS_RELATION_NAME = "status-peers"

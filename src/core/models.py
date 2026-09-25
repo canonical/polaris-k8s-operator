@@ -287,7 +287,7 @@ class Metastore:
 class OAuth:
     """State collection metadata for the oauth relation."""
 
-    # FIXME(identity): CA trust is expected to arrive through the dedicated receive-ca-certs
+    # FIXME(identity): CA trust is expected to arrive through the dedicated receive-ca-cert
     # relation. But once/if Hydra populates the ca_chain field in the databag, then we could
     # get it from there?
     def __init__(self, relation: ops.model.Relation | None, model: ops.model.Model) -> None:

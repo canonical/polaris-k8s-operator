@@ -48,7 +48,7 @@ class _OAuthStatuses:
     OAUTH_PROVIDER_UNREACHABLE = StatusObject(
         status="blocked",
         message="OAuth provider unreachable or untrusted",
-        action="Relate the charm to the receive-ca-certs issuer",
+        action="Relate the charm to the receive-ca-cert issuer",
     )
 
 
