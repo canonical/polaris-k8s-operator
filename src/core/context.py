@@ -164,7 +164,7 @@ class Context(ops.Object, WithLogging, StatusesStateProtocol):
         return self.model.get_relation(OAUTH_RELATION_NAME)
 
     @property
-    def receive_ca_cert_relations(self) -> list[ops.model.Relation] | None:
+    def receive_ca_cert_relations(self) -> list[ops.model.Relation]:
         """Get the receive-ca-cert relation."""
         return self.model.relations.get(RECEIVE_CERTS_RELATION_NAME, [])
 
