@@ -5,8 +5,11 @@
 
 import ipaddress
 import secrets
+import socket
+import ssl
 import string
-from typing import cast
+from typing import Sequence, cast
+from urllib.parse import urlparse
 
 import ops
 from charmlibs.interfaces.tls_certificates import CertificateRequestAttributes
@@ -39,41 +42,69 @@ class TLSManager(WithLogging):
         if not self.context.unit_server.truststore_password:
             self.logger.info("Generating new truststore password")
             password = self.generate_password()
+            self.polaris_workload.ensure_truststore_initialized(password)
             self.context.unit_server.set_truststore_password(password)
             return password
 
         return self.context.unit_server.truststore_password
 
-    def ensure_ca_chain_imported(self, ca_chain: list[str]) -> bool:
-        """Import an object-storage CA chain into the Polaris workload truststore.
+    def ensure_certificates_imported(
+        self,
+        certificates: Sequence[str],
+        alias_prefix: str,
+        certificate_path: str,
+    ) -> bool:
+        """Reconcile certificates in the Polaris workload truststore.
 
         The boolean return type indicates if the Polaris workload should be restarted.
         """
-        if not ca_chain:
-            return self.reset()
-
-        self.polaris_workload.reset_object_storage_tls()
         password = self.truststore_password()
+        self.polaris_workload.ensure_truststore_initialized(password)
+
+        current_aliases = {
+            alias
+            for alias in self.polaris_workload.truststore_aliases(password)
+            if alias.startswith(alias_prefix)
+        }
+        certificate_import_path = f"{certificate_path}.import"
+
+        if not certificates:
+            self.logger.info("Deleting %s certificates", alias_prefix)
+            deleted = self.polaris_workload.delete_truststore_aliases_by_prefix(
+                alias_prefix,
+                password,
+            )
+            removed_chain_file = self.polaris_workload.remove_file(certificate_path)
+            removed_import_file = self.polaris_workload.remove_file(certificate_import_path)
+            return deleted or removed_chain_file or removed_import_file
+
+        certificate_chain = "\n\n".join(certificates)
+        content_changed = self.polaris_workload.ensure_file(certificate_path, certificate_chain)
+        expected_aliases = {f"{alias_prefix}-{index}" for index in range(len(certificates))}
+        if not content_changed and current_aliases == expected_aliases:
+            return False
+
+        self.polaris_workload.delete_truststore_aliases_by_prefix(
+            alias_prefix,
+            password,
+        )
+
         try:
-            for index, certificate in enumerate(ca_chain):
-                self.polaris_workload.import_ca(
-                    certificate,
+            for index, certificate in enumerate(certificates):
+                self.polaris_workload.ensure_file(certificate_import_path, certificate)
+                self.polaris_workload.import_ca_certificate(
                     password,
-                    alias=f"object-storage-ca-{index}",
+                    f"{alias_prefix}-{index}",
+                    certificate_import_path,
                 )
         except ops.pebble.ExecError as e:
-            if e.stdout and "already exists" in e.stdout:
-                return False
             self.logger.error(e.stdout)
             raise
+        finally:
+            self.polaris_workload.remove_file(certificate_import_path)
 
-        self.logger.info("Object storage CA chain imported successfully")
+        self.logger.info("%s certificate chain imported successfully", alias_prefix)
         return True
-
-    def reset(self) -> bool:
-        """Remove object-storage TLS files from the Polaris workload."""
-        self.logger.info("Deleting object storage TLS files")
-        return self.polaris_workload.reset_object_storage_tls()
 
     def build_console_common_name(self) -> str:
         """Return the common name for the console TLS integration certificate request."""
@@ -116,3 +147,32 @@ class TLSManager(WithLogging):
             sans_dns=self.build_console_sans_dns(),
             sans_ip=self.build_console_sans_ip(),
         )
+
+    def check_endpoint_verified(
+        self, endpoint_url: str, ca_certs: set[str], trust_system_cas: bool = True
+    ) -> bool:
+        """Check if we can verify and reach out an external endpoint."""
+        parsed = urlparse(endpoint_url)
+        hostname = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+        ca_data = "\n".join(ca_certs)
+
+        if trust_system_cas:
+            context = ssl.create_default_context()
+        else:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.verify_mode = ssl.CERT_REQUIRED
+            context.check_hostname = True
+
+        if ca_data:
+            context.load_verify_locations(cadata=ca_data)
+
+        try:
+            with socket.create_connection((hostname, port), timeout=5) as sock:
+                with context.wrap_socket(sock, server_hostname=hostname):
+                    return True
+        except ssl.SSLCertVerificationError:
+            return False
+        except Exception:
+            return False

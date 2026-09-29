@@ -49,8 +49,8 @@ jobs:
               .split("\n")
           )
 
-          # COS charms are not available for arm64
-          ARM_DISABLED = {"integration-observability"}
+          # COS and Identity charms are not available for arm64
+          ARM_DISABLED = {"integration-oauth", "integration-observability"}
           jobs = []
           for job in spread_jobs:
               # Example: "github-ci:self-hosted-linux-amd64-noble-large:tests/spread/basic"

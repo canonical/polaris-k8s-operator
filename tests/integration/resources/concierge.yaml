@@ -37,8 +37,6 @@ host:
       channel: squid/stable
     kubectl:
       channel: latest/stable
-    just:
-      channel: latest/stable
     aws-cli:
       channel: latest/stable
     terraform:

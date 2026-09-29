@@ -14,10 +14,10 @@ from charmlibs import pathops
 
 from config.polaris import PolarisConfig
 from core.constants import (
-    ADMIN_USER,
     POLARIS_APPLICATION_PROPERTIES,
     REALM,
     REST_PORT,
+    ROOT_PRINCIPAL_ID,
     SYMMETRIC_KEY,
 )
 from core.context import Context
@@ -43,7 +43,7 @@ class PolarisManager(WithLogging):
             host="localhost",
             port=REST_PORT,
             scheme="http",
-            client_id=ADMIN_USER,
+            client_id=ROOT_PRINCIPAL_ID,
             client_secret=client_secret,
             realm=REALM,
             header=DEFAULT_HEADER,
@@ -54,17 +54,17 @@ class PolarisManager(WithLogging):
     def _root_principal_name(self, api: PolarisDefaultApi) -> str:
         """Return the principal name associated with the root client id."""
         for principal in api.list_principals().principals:
-            if principal.client_id == ADMIN_USER:
+            if principal.client_id == ROOT_PRINCIPAL_ID:
                 return principal.name
 
-        raise ValueError(f"Could not find Polaris principal with client id {ADMIN_USER}")
+        raise ValueError(f"Could not find Polaris principal with client id {ROOT_PRINCIPAL_ID}")
 
     def reset_root_principal_credentials(self, current_password: str, new_password: str) -> None:
         """Reset root principal credentials through the Polaris management API."""
         api = self._api(client_secret=current_password)
         api.reset_credentials(
             self._root_principal_name(api),
-            ResetPrincipalRequest(clientId=ADMIN_USER, clientSecret=new_password),
+            ResetPrincipalRequest(clientId=ROOT_PRINCIPAL_ID, clientSecret=new_password),
         )
 
     def update(
@@ -84,7 +84,7 @@ class PolarisManager(WithLogging):
             self.logger.info("Skipping workload restart, object storage is not ready")
             return
 
-        self.logger.info("Restarting Polaris workload")
+        self.logger.info("Updating Polaris workload configuration")
 
         config = PolarisConfig(context=self.context)
         config_changed = any(

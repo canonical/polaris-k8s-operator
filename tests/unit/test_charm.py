@@ -12,20 +12,23 @@ from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secre
 
 from charm import PolarisK8sCharm
 from core.constants import (
-    ADMIN_USER,
+    ADDITIONAL_CA_CERTIFICATE,
     CONSOLE_PORT,
     CONSOLE_TLS_CERTIFICATE,
     CONSOLE_TLS_PORT,
     CONSOLE_TLS_PRIVATE_KEY,
+    OBJECT_STORAGE_CERTIFICATE,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_CONTAINER_NAME,
     POLARIS_SERVICE_NAME,
     RANDOM_KEY_SIZE,
+    ROOT_PRINCIPAL_ID,
     SYMMETRIC_KEY,
     SYSTEM_USER_SECRET_LABEL_SUFFIX,
 )
 from core.models import REQUIRED_S3_PARAMETERS
+from core.workload.polaris import PolarisWorkload
 from events.metastore import MetastoreStatuses
 from events.polaris import SYSTEM_USER_SECRET_LABEL, CharmStatuses
 from events.s3 import ObjectStorageStatuses
@@ -41,6 +44,9 @@ UPDATED_USER_PASSWORD = "s3cr3t"
 INTERNAL_SYSTEM_USER_SECRET_LABEL = (
     f"{PEERS_RELATION_NAME}.polaris-k8s.app.{SYSTEM_USER_SECRET_LABEL_SUFFIX}"
 )
+CERTIFICATE_1 = """-----BEGIN CERTIFICATE-----
+MIIBtest-certificate-1
+-----END CERTIFICATE-----"""
 
 
 def _bootstrap_credentials_line(config: str) -> str:
@@ -208,7 +214,7 @@ def test_bare_leader_deployment_writes_config_with_random_password(
     credentials = _bootstrap_credentials_line(config)
     password = credentials.rsplit(",", maxsplit=1)[1]
 
-    assert credentials.startswith(f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},")
+    assert credentials.startswith(f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},")
     assert password
     assert len(password) == RANDOM_KEY_SIZE * 2
     assert "polaris.authentication.token-broker.type=symmetric-key" in config
@@ -232,7 +238,7 @@ def test_config_changed_uses_configured_system_user_secret(
 ) -> None:
     # Given
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     state = State(
@@ -249,7 +255,7 @@ def test_config_changed_uses_configured_system_user_secret(
     # Then
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{USER_PASSWORD}" in config
+    assert f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{USER_PASSWORD}" in config
     assert out.get_secret(id=USER_SECRET_ID).label == SYSTEM_USER_SECRET_LABEL
 
     relation = out.get_relation(polaris_peers_relation)
@@ -280,7 +286,7 @@ def test_config_changed_switches_from_random_password_to_user_secret(
     initial_password = _bootstrap_credentials_line(initial_config).rsplit(",", maxsplit=1)[1]
 
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     configured_state = State(
@@ -304,7 +310,7 @@ def test_config_changed_switches_from_random_password_to_user_secret(
 
     assert initial_password
     assert initial_password != USER_PASSWORD
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{USER_PASSWORD}" in config
+    assert f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{USER_PASSWORD}" in config
 
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "3"
@@ -329,8 +335,8 @@ def test_secret_changed_updates_leader_config_and_epoch(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
-        latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
+        latest_content={ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
         label=SYSTEM_USER_SECRET_LABEL,
     )
@@ -353,7 +359,10 @@ def test_secret_changed_updates_leader_config_and_epoch(
 
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+    assert (
+        f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{UPDATED_USER_PASSWORD}"
+        in config
+    )
 
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "2"
@@ -382,8 +391,8 @@ def test_secret_changed_applies_password_update_after_bootstrap(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: USER_PASSWORD},
-        latest_content={ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: USER_PASSWORD},
+        latest_content={ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
         label=SYSTEM_USER_SECRET_LABEL,
     )
@@ -433,7 +442,7 @@ def test_config_changed_applies_password_update_after_bootstrap(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     state = State(
@@ -484,7 +493,7 @@ def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
     )
     state = State(
@@ -522,7 +531,10 @@ def test_failed_password_rotation_keeps_state_and_is_retried_on_next_event(
     relation = out.get_relation(polaris_peers_relation)
     assert relation.local_app_data.get("epoch") == "3"
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+    assert (
+        f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{UPDATED_USER_PASSWORD}"
+        in config
+    )
 
 
 def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
@@ -548,7 +560,7 @@ def test_pending_password_rotation_is_deferred_when_bootstrap_fails(
         owner="app",
     )
     user_secret = Secret(
-        {ADMIN_USER: UPDATED_USER_PASSWORD},
+        {ROOT_PRINCIPAL_ID: UPDATED_USER_PASSWORD},
         id=USER_SECRET_ID,
         label=SYSTEM_USER_SECRET_LABEL,
     )
@@ -957,5 +969,89 @@ def test_non_leader_updates_config_from_internal_peer_secret_on_relation_changed
     # Then
     config = (tmp_path / Path(POLARIS_APPLICATION_PROPERTIES).name).read_text()
 
-    assert f"polaris.bootstrap.credentials=POLARIS,{ADMIN_USER},{UPDATED_USER_PASSWORD}" in config
+    assert (
+        f"polaris.bootstrap.credentials=POLARIS,{ROOT_PRINCIPAL_ID},{UPDATED_USER_PASSWORD}"
+        in config
+    )
     assert (tmp_path / Path(SYMMETRIC_KEY).name).read_text() == "shared-key-value"
+
+
+def test_s3_reconciles_custom_ca_on_polaris_pebble_ready(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    s3_relation = replace(
+        s3_relation,
+        remote_app_data=dict(s3_relation.remote_app_data.items())
+        | {"tls-ca-chain": CERTIFICATE_1},
+    )
+    state = State(
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+
+    # When
+    with (
+        patch("managers.polaris.PolarisManager.update"),
+        patch(
+            "managers.tls.TLSManager.ensure_certificates_imported", return_value=False
+        ) as patched_import,
+    ):
+        polaris_context.run(polaris_context.on.pebble_ready(polaris_container), state)
+
+    # Then
+    patched_import.assert_any_call(
+        [CERTIFICATE_1],
+        "object-storage-ca",
+        OBJECT_STORAGE_CERTIFICATE,
+    )
+
+
+def test_charm_reconciles_ca_on_polaris_pebble_ready_when_polaris_is_not_active(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+) -> None:
+    # Given
+    polaris_container = Container(
+        name=polaris_container.name,
+        can_connect=polaris_container.can_connect,
+        mounts=polaris_container.mounts,
+        execs=polaris_container.execs,
+        service_statuses={next(iter(polaris_container.service_statuses)): ServiceStatus.INACTIVE},
+        layers=polaris_container.layers,
+    )
+    state = State(
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+
+    # When
+    with (
+        patch("managers.polaris.PolarisManager.update"),
+        patch.object(PolarisWorkload, "active", new_callable=PropertyMock, return_value=False),
+        patch(
+            "core.context.Context.additional_ca_certificates",
+            new_callable=PropertyMock,
+            return_value={CERTIFICATE_1},
+        ),
+        patch(
+            "managers.tls.TLSManager.ensure_certificates_imported", return_value=False
+        ) as patched_import,
+    ):
+        polaris_context.run(polaris_context.on.pebble_ready(polaris_container), state)
+
+    # Then
+    patched_import.assert_any_call(
+        [CERTIFICATE_1],
+        "additional-ca",
+        ADDITIONAL_CA_CERTIFICATE,
+    )

@@ -11,14 +11,18 @@ from charm import PolarisK8sCharm
 from core.constants import (
     CONSOLE_CONTAINER_NAME,
     CONSOLE_SERVICE_NAME,
+    DEFAULT_JAVA_TRUSTSTORE,
     METASTORE_RELATION_NAME,
     PEERS_RELATION_NAME,
     POLARIS_APPLICATION_PROPERTIES,
     POLARIS_BOOTSTRAP_COMMAND,
     POLARIS_CONTAINER_NAME,
     POLARIS_SERVICE_NAME,
+    POLARIS_TRUSTSTORE,
     S3_RELATION_NAME,
     TLS_RELATION_NAME,
+    WORKLOAD_GROUP,
+    WORKLOAD_USER,
 )
 
 
@@ -50,7 +54,13 @@ def polaris_container(tmp_path: Path) -> Container:
         name=POLARIS_CONTAINER_NAME,
         can_connect=True,
         mounts={"polaris": Mount(location="/etc/polaris", source=tmp_path)},
-        execs=[Exec(list(POLARIS_BOOTSTRAP_COMMAND))],
+        execs=[
+            Exec(list(POLARIS_BOOTSTRAP_COMMAND)),
+            Exec(["cp", DEFAULT_JAVA_TRUSTSTORE, POLARIS_TRUSTSTORE]),
+            Exec(["chown", "-R", f"{WORKLOAD_USER}:{WORKLOAD_GROUP}", POLARIS_TRUSTSTORE]),
+            Exec(["chmod", "660", POLARIS_TRUSTSTORE]),
+            Exec(["keytool"]),
+        ],
         service_statuses={POLARIS_SERVICE_NAME: ServiceStatus.ACTIVE},
         layers={
             POLARIS_SERVICE_NAME: Layer(

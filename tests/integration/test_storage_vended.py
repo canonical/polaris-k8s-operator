@@ -20,7 +20,7 @@ from pyiceberg.catalog import load_catalog
 from pyiceberg.schema import Schema
 from pyiceberg.types import LongType, NestedField, StringType
 
-from core.constants import ADMIN_USER, REALM
+from core.constants import REALM, ROOT_PRINCIPAL_ID
 
 from .helpers import (
     S3Info,
@@ -137,7 +137,7 @@ def test_polaris_catalog_write_read(
             "type": "rest",
             "uri": f"{base_url}/api/catalog",
             "warehouse": CATALOG_NAME,
-            "credential": f"{ADMIN_USER}:{admin_password_from_internal_secret(juju)}",
+            "credential": f"{ROOT_PRINCIPAL_ID}:{admin_password_from_internal_secret(juju)}",
             "oauth2-server-uri": f"{base_url}/api/catalog/v1/oauth/tokens",
             "scope": "PRINCIPAL_ROLE:ALL",
             "header.Polaris-Realm": REALM,
