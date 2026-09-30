@@ -15,7 +15,7 @@ on:
         value: ${{ jobs.build.outputs.artifact-prefix }}
   pull_request:
   schedule:
-    - cron: "53 2 * * *" # Daily at 02:53 UTC
+    - cron: "53 23 * * *" # Daily at 23:53 UTC
 
 permissions:
   contents: read
