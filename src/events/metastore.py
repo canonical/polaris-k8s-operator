@@ -21,6 +21,7 @@ from core.constants import METASTORE_RELATION_NAME, POLARIS_METASTORE_DATABASE_N
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
+from managers.metastore import MetastoreManager
 from managers.polaris import PolarisManager
 
 
@@ -35,6 +36,10 @@ class _MetastoreStatuses:
     METASTORE_NOT_READY = StatusObject(
         status="waiting",
         message="Waiting for metastore relation data",
+    )
+    METASTORE_NO_SCHEMA = StatusObject(
+        status="waiting",
+        message="Waiting for metastore schema creation",
     )
 
     @staticmethod
@@ -65,15 +70,17 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         self.context = context
         self.polaris_workload = polaris_workload
 
-        self.polaris_manager = PolarisManager(
-            self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
-        )
         self.metastore = DatabaseRequires(
             charm=self.charm,
             relation_name=METASTORE_RELATION_NAME,
             database_name=POLARIS_METASTORE_DATABASE_NAME,
             extra_user_roles="SUPERUSER",
         )
+
+        self.polaris_manager = PolarisManager(
+            self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
+        )
+        self.metastore_manager = MetastoreManager(self.context)
 
         self.framework.observe(self.metastore.on.database_created, self._on_update)
         self.framework.observe(self.metastore.on.endpoints_changed, self._on_update)
@@ -102,7 +109,8 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             self.logger.info("Metastore relation not ready")
             return
 
-        self.polaris_manager.update()
+        if self.metastore_manager.ensure_schema():
+            self.polaris_manager.update()
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle metastore relation events."""
@@ -147,5 +155,8 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
 
         if not self.context.metastore.ready:
             status_list.append(MetastoreStatuses.METASTORE_NOT_READY)
+
+        if not self.metastore_manager.ensure_schema():
+            status_list.append(MetastoreStatuses.METASTORE_NO_SCHEMA)
 
         return status_list

@@ -4,6 +4,7 @@
 """Polaris workload configuration."""
 
 from core.constants import (
+    POLARIS_METASTORE_SCHEMA,
     POLARIS_TRUSTSTORE,
     REALM,
     ROOT_PRINCIPAL_ID,
@@ -45,6 +46,7 @@ class PolarisConfig(WithLogging):
                     "quarkus.datasource.jdbc.url": metastore.jdbc_url,
                     "quarkus.datasource.username": metastore.username,
                     "quarkus.datasource.password": metastore.password,
+                    "quarkus.datasource.jdbc.additional-jdbc-properties.currentSchema": POLARIS_METASTORE_SCHEMA,  # noqa: E501
                 }
             )
 

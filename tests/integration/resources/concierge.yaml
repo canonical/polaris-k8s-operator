@@ -30,6 +30,7 @@ host:
     - python3-dev
     - python3-pip
     - python3-venv
+    - libpq-dev
   snaps:
     yq:
       channel: latest/stable

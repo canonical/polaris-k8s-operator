@@ -42,6 +42,7 @@ TLS_RELATION_NAME = "client-certificates"
 # Misc.
 ROOT_PRINCIPAL_ID = "charmed-operator"
 POLARIS_METASTORE_DATABASE_NAME = "polaris"
+POLARIS_METASTORE_SCHEMA = "polaris_schema"
 POLARIS_BOOTSTRAP_COMMAND = ("/opt/polaris/bin/admin", "bootstrap")
 KEYTOOL = "keytool"
 DEFAULT_JAVA_TRUSTSTORE_PASSWORD = "changeit"

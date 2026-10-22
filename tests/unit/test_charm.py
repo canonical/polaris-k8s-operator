@@ -3,9 +3,11 @@
 
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import ops
+import psycopg
+import pytest
 import yaml
 from ops.pebble import ServiceStatus
 from ops.testing import Container, Context, Mount, PeerRelation, Relation, Secret, State, TCPPort
@@ -47,6 +49,30 @@ INTERNAL_SYSTEM_USER_SECRET_LABEL = (
 CERTIFICATE_1 = """-----BEGIN CERTIFICATE-----
 MIIBtest-certificate-1
 -----END CERTIFICATE-----"""
+
+
+@pytest.fixture(autouse=True)
+def mock_psycopg_connect():
+    """Intercept all psycopg.connect calls and simulate a valid connection context.
+
+    Note: Added for Polaris 1.8.0 support. 1.8.0+ requires the schema to exist in the
+    database before we bootstrap Polaris. The charm takes care of it, but it is a bit
+    annoying to patch all test functions to mock the connection to the database.
+    Therefore, this fixture takes care of it for us.
+    """
+    with patch("psycopg.connect") as mock_connect:
+        # Mock connection and cursor objects
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+
+        # Handle context managers: `with psycopg.connect(...) as conn:`
+        mock_connect.return_value.__enter__.return_value = mock_conn
+        mock_connect.return_value.__exit__.return_value = None
+
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        yield mock_connect
 
 
 def _bootstrap_credentials_line(config: str) -> str:
@@ -118,7 +144,37 @@ def test_polaris_missing_metastore_data(
     out = polaris_context.run(polaris_context.on.install(), state)
 
     # Then
-    assert MetastoreStatuses.METASTORE_NOT_READY.message == out.unit_status.message
+    assert MetastoreStatuses.METASTORE_NOT_READY.message in out.unit_status.message
+
+
+def test_polaris_missing_metastore_schema(
+    console_container: Container,
+    polaris_container: Container,
+    polaris_context: Context[PolarisK8sCharm],
+    polaris_peers_relation: PeerRelation,
+    metastore_relation: Relation,
+    s3_relation: Relation,
+    mock_psycopg_connect: Mock,
+) -> None:
+    """Test that the charm properly reports a missing schema.
+
+    The other tests automatically apply the mock_psycopg_connect fixture, this test
+    specifically requires it so we can modify the side effect to mimic an issue with the
+    schema creation.
+    """
+    # Given
+    state = State(
+        config={},
+        containers=[polaris_container, console_container],
+        relations=[polaris_peers_relation, metastore_relation, s3_relation],
+    )
+    mock_psycopg_connect.side_effect = psycopg.errors.InsufficientPrivilege("permission denied")
+
+    # When
+    out = polaris_context.run(polaris_context.on.install(), state)
+
+    # Then
+    assert MetastoreStatuses.METASTORE_NO_SCHEMA.message == out.unit_status.message
 
 
 def test_polaris_missing_object_storage_data(

@@ -239,13 +239,13 @@ trio = ["trio (>=0.32.0)"]
 
 [[package]]
 name = "apache-polaris"
-version = "1.7.0"
+version = "1.8.0"
 description = "Apache Polaris"
 optional = false
 python-versions = "<3.15,>=3.10"
 groups = ["main"]
 files = [
-    {file = "apache_polaris-1.7.0-py3-none-any.whl", hash = "sha256:c589d05f73025b2999105a129d4eafc0b3a6e6f046ac83f66b66f2e288ff032e"},
+    {file = "apache_polaris-1.8.0-py3-none-any.whl", hash = "sha256:f2fef0f0e0b2fe25b5529c2dd3c0b575746c096c7e4badbb762b026fce73bc3a"},
 ]
 
 [package.dependencies]
@@ -1813,6 +1813,43 @@ files = [
 ]
 
 [[package]]
+name = "psycopg"
+version = "3.3.6"
+description = "PostgreSQL database adapter for Python"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "psycopg-3.3.6-py3-none-any.whl", hash = "sha256:a1db9f7148b06a28606767efaca51fa6f9398c5c0a3810519be69d7000bdb631"},
+    {file = "psycopg-3.3.6.tar.gz", hash = "sha256:c081f2250df751a943036e42db6df4571c66cd0aabe8291a7a506512b12007d2"},
+]
+
+[package.dependencies]
+psycopg-c = {version = "3.3.6", optional = true, markers = "implementation_name != \"pypy\" and extra == \"c\""}
+typing-extensions = {version = ">=4.6", markers = "python_version < \"3.13\""}
+tzdata = {version = "*", markers = "sys_platform == \"win32\""}
+
+[package.extras]
+binary = ["psycopg-binary (==3.3.6) ; implementation_name != \"pypy\""]
+c = ["psycopg-c (==3.3.6) ; implementation_name != \"pypy\""]
+dev = ["ast-comments (>=1.1.2)", "black (>=26.1.0)", "codespell (>=2.2)", "cython-lint (>=0.21)", "dnspython (>=2.1)", "flake8 (>=4.0)", "isort-psycopg (>=0.0.3)", "isort[colors] (>=6.0)", "mypy (>=2.1.0)", "pre-commit (>=4.0.1)", "types-setuptools (>=57.4)", "types-shapely (>=2.0)", "wheel (>=0.37)"]
+docs = ["Sphinx (>=9.1)", "furo (==2025.12.19)", "sphinx-autobuild (>=2025.8.25)", "sphinx-autodoc-typehints (>=3.10.2)"]
+pool = ["psycopg-pool"]
+test = ["anyio (>=4.0)", "mypy (>=2.1.0) ; implementation_name != \"pypy\"", "pproxy (>=2.7)", "pytest (>=6.2.5)", "pytest-cov (>=3.0)", "pytest-randomly (>=3.5)"]
+
+[[package]]
+name = "psycopg-c"
+version = "3.3.6"
+description = "PostgreSQL database adapter for Python -- C optimisation distribution"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "implementation_name != \"pypy\""
+files = [
+    {file = "psycopg_c-3.3.6.tar.gz", hash = "sha256:29c568426ad61c1b702c7d73505c43ca2c9fc5d97a8431d8d9049e731e319ff8"},
+]
+
+[[package]]
 name = "pyarrow"
 version = "25.0.0"
 description = "Python library for Apache Arrow"
@@ -3192,6 +3229,19 @@ files = [
 typing-extensions = ">=4.12.0"
 
 [[package]]
+name = "tzdata"
+version = "2026.5"
+description = "Provider of IANA time zone data"
+optional = false
+python-versions = ">=2"
+groups = ["main"]
+markers = "sys_platform == \"win32\""
+files = [
+    {file = "tzdata-2026.5-py2.py3-none-any.whl", hash = "sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac"},
+    {file = "tzdata-2026.5.tar.gz", hash = "sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7"},
+]
+
+[[package]]
 name = "urllib3"
 version = "2.7.0"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -3597,4 +3647,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "c485348dcad5dedbefad90eee1b778a6fbdb81483df67ee9bffb4f2e70d2d8a7"
+content-hash = "ecf942fcff3c8f81b0b97561d7129d000c21f8fa1d289b8932f45e1609bef0c6"
