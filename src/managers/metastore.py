@@ -17,11 +17,18 @@ class MetastoreManager(WithLogging):
     def __init__(self, context: Context) -> None:
         self.context = context
 
+        self.schema_exists: bool | None = None
+
     def ensure_schema(self) -> bool:
         """Ensure schema is present in the database.
 
         Polaris 1.8.0 requires the schema to exist before we bootstrap.
         """
+        if self.schema_exists is not None:
+            return self.schema_exists
+
+        self.schema_exists = False
+
         if not (metastore := self.context.metastore).ready:
             return False
 
@@ -46,4 +53,5 @@ class MetastoreManager(WithLogging):
             self.logger.exception(f"Failed to create schema '{POLARIS_METASTORE_SCHEMA}'")
             return False
 
+        self.schema_exists = True
         return True

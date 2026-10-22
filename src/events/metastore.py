@@ -91,8 +91,6 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             self._on_relation_broken,
         )
 
-        self.schema_exists: bool | None = None
-
     def reconcile(self, event: ops.EventBase | None = None) -> None:
         """Reconcile metastore relation data and workload configuration."""
         if not self.context.cluster.relation:
@@ -111,8 +109,8 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             self.logger.info("Metastore relation not ready")
             return
 
-        self.schema_exists = self.metastore_manager.ensure_schema()
-        self.polaris_manager.update()
+        if self.metastore_manager.ensure_schema():
+            self.polaris_manager.update()
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle metastore relation events."""
@@ -158,10 +156,7 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
         if not self.context.metastore.ready:
             status_list.append(MetastoreStatuses.METASTORE_NOT_READY)
 
-        if self.schema_exists is None:
-            self.schema_exists = self.metastore_manager.ensure_schema()
-
-        if not self.schema_exists:
+        if not self.metastore_manager.ensure_schema():
             status_list.append(MetastoreStatuses.METASTORE_NO_SCHEMA)
 
         return status_list
