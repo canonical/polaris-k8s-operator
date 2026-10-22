@@ -156,6 +156,12 @@ def test_polaris_missing_metastore_schema(
     s3_relation: Relation,
     mock_psycopg_connect: Mock,
 ) -> None:
+    """Test that the charm properly reports a missing schema.
+
+    The other tests automatically apply the mock_psycopg_connect fixture, this test
+    specifically requires it so we can modify the side effect to mimic an issue with the
+    schema creation.
+    """
     # Given
     state = State(
         config={},
