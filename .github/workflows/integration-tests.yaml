@@ -61,7 +61,8 @@ jobs:
                   continue
 
               if "arm" in runner:
-                  architecture = "arm64"
+                  continue
+                  # architecture = "arm64"
               else:
                   architecture = "amd64"
 
