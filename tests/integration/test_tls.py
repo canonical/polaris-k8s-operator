@@ -1,5 +1,12 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
+"""TLS integration tests.
+
+What is checked:
+- Polaris + TLS: the console using https and the iceberg client can connect to Polaris
+- Object storage + TLS: Polaris can interact with the object storage
+- PostgreSQL + TLS: Polaris can bootstrap and use the metastore.
+"""
 
 import base64
 import logging
@@ -41,6 +48,7 @@ CATALOG_NAME = "storage_test"
 NAMESPACE = "default"
 TABLE_NAME = "storage_table"
 CATALOG_ADMIN_ROLE = "catalog_admin"
+METASTORE_TLS_PROVIDER = "metastore-tls"
 
 
 def test_deploy(
@@ -81,11 +89,21 @@ def test_deploy(
     )
     juju.deploy(**metastore.to_dict())
     juju.deploy(**tls_provider.to_dict())
+    # + dedicated tls provider for the metastore
+    metastore_tls = tls_provider.to_dict()
+    metastore_tls["app"] = METASTORE_TLS_PROVIDER
+    juju.deploy(**metastore_tls)
 
-    logger.info("Waiting for s3-integrator, metastore and TLS provider to be active...")
+    logger.info("Waiting for s3-integrator, metastore and TLS providers to be active...")
     juju.wait(
         lambda status: jubilant.all_active(status, s3.app, metastore.app, tls_provider.app),
         delay=15,
+    )
+    juju.integrate(f"{metastore.app}:client-certificates", METASTORE_TLS_PROVIDER)
+
+    juju.wait(
+        lambda status: jubilant.all_active(status, s3.app, metastore.app, tls_provider.app),
+        delay=10,
     )
 
     juju.integrate(APP_NAME, s3.app)

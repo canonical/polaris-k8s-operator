@@ -17,12 +17,17 @@ from data_platform_helpers.advanced_statuses.models import StatusObject
 from data_platform_helpers.advanced_statuses.protocol import ManagerStatusProtocol
 from data_platform_helpers.advanced_statuses.types import Scope
 
-from core.constants import METASTORE_RELATION_NAME, POLARIS_METASTORE_DATABASE_NAME
+from core.constants import (
+    METASTORE_CERTIFICATE,
+    METASTORE_RELATION_NAME,
+    POLARIS_METASTORE_DATABASE_NAME,
+)
 from core.context import Context
 from core.logging import WithLogging
 from core.workload.polaris import PolarisWorkload
 from managers.metastore import MetastoreManager
 from managers.polaris import PolarisManager
+from managers.tls import TLSManager
 
 
 class _MetastoreStatuses:
@@ -81,6 +86,7 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             self.context, self.polaris_workload, is_leader=self.charm.unit.is_leader()
         )
         self.metastore_manager = MetastoreManager(self.context)
+        self.tls_manager = TLSManager(self.context, self.polaris_workload)
 
         self.framework.observe(self.metastore.on.database_created, self._on_update)
         self.framework.observe(self.metastore.on.endpoints_changed, self._on_update)
@@ -109,8 +115,14 @@ class MetastoreEvents(ops.Object, WithLogging, ManagerStatusProtocol):
             self.logger.info("Metastore relation not ready")
             return
 
+        force_restart = self.tls_manager.ensure_certificates_imported(
+            self.context.metastore.tls_ca_chain,
+            "metastore-ca",
+            METASTORE_CERTIFICATE,
+        )
+
         if self.metastore_manager.ensure_schema():
-            self.polaris_manager.update()
+            self.polaris_manager.update(force_restart=force_restart)
 
     def _on_update(self, event: ops.EventBase) -> None:
         """Handle metastore relation events."""

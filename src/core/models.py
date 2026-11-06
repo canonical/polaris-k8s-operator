@@ -283,6 +283,19 @@ class Metastore:
         """Return whether the metastore relation has complete connection data."""
         return bool(self.endpoint and self.username and self.password and self.database)
 
+    @property
+    def is_tls_enabled(self) -> bool:
+        """Return whether the metastore relation uses TLS."""
+        return bool(self.relation_data.get("tls", "False") != "False")
+
+    @property
+    def tls_ca_chain(self) -> list[str]:
+        """Return the metastore TLS CA chain."""
+        ca_chain: Any = self.relation_data.get("tls-ca") or []
+        if isinstance(ca_chain, str):
+            return [ca_chain]
+        return list(ca_chain)
+
 
 class OAuth:
     """State collection metadata for the oauth relation."""

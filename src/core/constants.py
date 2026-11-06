@@ -21,6 +21,7 @@ REALM = "POLARIS"
 
 # Files
 POLARIS_APPLICATION_PROPERTIES = "/etc/polaris/application.properties"
+METASTORE_CERTIFICATE = "/etc/polaris/metastore-ca.pem"
 OBJECT_STORAGE_CERTIFICATE = "/etc/polaris/object-storage-ca.pem"
 ADDITIONAL_CA_CERTIFICATE = "/etc/polaris/additional-ca.pem"
 POLARIS_TRUSTSTORE = "/etc/polaris/polaris-truststore.jks"
