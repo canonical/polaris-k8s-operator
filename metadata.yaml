@@ -27,8 +27,12 @@ charm-user: non-root
 containers:
   polaris:
     resource: polaris-image
+    uid: 584792
+    gid: 584792
   console:
     resource: polaris-console-image
+    uid: 584792
+    gid: 584792
 
 resources:
   polaris-image:
@@ -36,15 +40,11 @@ resources:
     description: OCI image for Polaris, both server and admin tool.
     # Polaris 1.8.0-bare - 2026-11-04
     upstream-source: ghcr.io/canonical/charmed-polaris@sha256:b25973936be1805530d7da02f9e4f83a67f668958f162efaa5ec9dabd91e10bf
-    uid: 584792
-    gid: 584792
   polaris-console-image:
     type: oci-image
     description: OCI image for Polaris Console.
     # 0.1.0-bare - 2026-09-16
     upstream-source: ghcr.io/canonical/polaris-console@sha256:c8b8b855bdf6aa4d324aa30358f88d61b0586fb436370a4771637bf902420e6a
-    uid: 584792
-    gid: 584792
 
 peers:
   polaris-peers:
