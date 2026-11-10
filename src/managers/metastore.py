@@ -3,6 +3,11 @@
 
 """Metastore manager."""
 
+import tempfile
+from contextlib import ExitStack
+from pathlib import Path
+from typing import Any
+
 import psycopg
 from psycopg import sql
 
@@ -38,20 +43,28 @@ class MetastoreManager(WithLogging):
         )
 
         host, _, port = metastore.endpoint.partition(":")
+        connection_kwargs: dict[str, Any] = {
+            "host": host,
+            "port": port or 5432,
+            "dbname": metastore.database,
+            "user": metastore.username,
+            "password": metastore.password,
+        }
 
-        try:
-            with psycopg.connect(
-                host=host,
-                port=port or 5432,
-                dbname=metastore.database,
-                user=metastore.username,
-                password=metastore.password,
-            ) as conn:
+        with ExitStack() as stack:
+            if metastore.is_tls_enabled:
+                tmpdir = stack.enter_context(tempfile.TemporaryDirectory())
+                ca_path = Path(tmpdir) / "metastore_ca.pem"
+                ca_path.write_text("\n".join(metastore.tls_ca_chain))
+                connection_kwargs.update(sslmode="verify-full", sslrootcert=str(ca_path))
+
+            try:
+                conn = stack.enter_context(psycopg.connect(**connection_kwargs))
                 conn.execute(query)
 
-        except psycopg.Error:
-            self.logger.exception(f"Failed to create schema '{POLARIS_METASTORE_SCHEMA}'")
-            return False
+            except psycopg.Error:
+                self.logger.exception(f"Failed to create schema '{POLARIS_METASTORE_SCHEMA}'")
+                return False
 
         self.schema_exists = True
         return True
