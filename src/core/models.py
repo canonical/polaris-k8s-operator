@@ -242,7 +242,7 @@ class Metastore:
 
         try:
             return self._model.get_secret(id=secret_id).get_content(refresh=True)
-        except (ops.ModelError, ops.SecretNotFoundError):
+        except ops.ModelError, ops.SecretNotFoundError:
             logger.warning("Could not access metastore user secret")
             return {}
 
@@ -331,7 +331,7 @@ class OAuth:
 
         try:
             return self._model.get_secret(id=self.client_secret_id).get_content(refresh=True)
-        except (ops.ModelError, ops.SecretNotFoundError):
+        except ops.ModelError, ops.SecretNotFoundError:
             logger.warning("Could not access oauth client secret")
             return {}
 
