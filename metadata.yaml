@@ -38,8 +38,8 @@ resources:
   polaris-image:
     type: oci-image
     description: OCI image for Polaris, both server and admin tool.
-    # Polaris 1.8.0-bare - 2026-11-04
-    upstream-source: ghcr.io/canonical/charmed-polaris@sha256:b25973936be1805530d7da02f9e4f83a67f668958f162efaa5ec9dabd91e10bf
+    # Polaris 1.9.0-bare_edge - 2026-11-20
+    upstream-source: ghcr.io/canonical/charmed-polaris@sha256:6603b19624aa9c5ce223065e25de8c2a637bd5b4fbe0478b4245d822b2e8e229
   polaris-console-image:
     type: oci-image
     description: OCI image for Polaris Console.
